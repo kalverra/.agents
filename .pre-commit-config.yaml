@@ -26,6 +26,6 @@ repos:
         language: system
         pass_filenames: false
         types: [markdown]
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
 
 default_install_hook_types: [pre-commit, pre-push]

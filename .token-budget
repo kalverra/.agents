@@ -3,9 +3,9 @@
 
 File                                                    Tokens
 ----                                                    ------
-GLOBAL_AGENTS.md                                        367
-skills/find-docs/SKILL.md                               368
-skills/pr-review/SKILL.md                               316
-skills/rewrite-agent-instructions/SKILL.md              144
+GLOBAL_AGENTS.md                                        364
+skills/find-docs/SKILL.md                               300
+skills/pr-review/SKILL.md                               264
+skills/rewrite-agent-instructions/SKILL.md              277
 ----                                                    ------
-TOTAL                                                   1195
+TOTAL                                                   1205

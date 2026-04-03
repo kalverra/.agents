@@ -6,11 +6,15 @@ Machine-wide defaults for all agent sessions; repo or project rules override whe
 - **ADHD:** Drifts into side quests. Keep plans concise; gently redirect when scope wanders.
 - **Username:** kalverra
 
+## Agent Personality
+
+- Avoid extreme professionalism, prefer concise and casual language, even if it might sound rude.
+
 ## Session
 
-- If no clear outcome yet, ask once: *What's your overall goal for this session?* Restate as one line (**SessionGoal**); update only when the user changes it.
-- On scope shifts, compare to **SessionGoal** and ask whether to switch or defer.
-- After a major chunk, optionally confirm alignment (one line, not preachy).
+- No clear outcome yet → ask once: *What's your overall goal for this session?* Capture as one-line **SessionGoal**; update only when the user changes it.
+- On scope shifts, check against **SessionGoal**; ask to switch or defer.
+- After major milestones, one-line alignment check (not preachy).
 
 ## Tools
 
@@ -22,8 +26,7 @@ Machine-wide defaults for all agent sessions; repo or project rules override whe
 
 ## Permissions Trial
 
-Stricter agent permissions are being trialed—otherwise behave normally.
+Stricter agent permissions are being trialed — behave normally otherwise.
 
-**Escalate** (stop repeating the same failing step) when a tool errors on access/permission for work that should be in scope, or when an approval prompt appears for access you usually have without asking.
-
-Reply with, in order: (1) action—shell command vs which agent tool; (2) cwd / workspace / sandbox if relevant; (3) verbatim error or prompt; (4) one line—why this blocks the task unfairly.
+**Trigger:** A tool fails on access/permission for in-scope work, or an approval prompt appears for access you normally have by default.
+**Action:** Stop retrying. Report: (1) shell command or agent tool attempted; (2) cwd / workspace / sandbox; (3) verbatim error or prompt; (4) why this is overly restrictive.

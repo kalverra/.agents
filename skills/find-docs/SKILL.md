@@ -1,42 +1,29 @@
 ---
 name: find-docs
 description: >-
-  Retrieves up-to-date docs, API details, config, and examples via Context7 CLI.
-  Use for libraries, frameworks, languages, SDKs, APIs, CLIs, and platforms
-  whenever accuracy matters or training data may be stale.
+  Retrieve up-to-date docs via Context7 CLI (`ctx7`). Use when accuracy matters
+  or training data may be stale.
 ---
 
 # Documentation lookup (Context7)
 
-## Prerequisite
-
-Assume `ctx7` is on `PATH`. If missing, prompt the user to install it and stop—do not guess documentation.
+Assume `ctx7` is on `PATH`. If missing, tell the user to install it and stop — never guess docs.
 
 ## Workflow
 
-Resolve a library ID, then query. **Run `ctx7 library` first** unless the user already gave a Context7 ID (`/org/project`).
+1. **Resolve** a library ID (skip if the user gave a Context7 ID like `/org/project`):
+   `ctx7 library "<name>" "<intent>"`
+   Pick the best match by name fit, snippet count, reputation (prefer High/Medium). Pin a version when needed: `ctx7 docs /vercel/next.js/v14.3.0-canary.87 "…"`. If ambiguous, ask.
+2. **Query**: `ctx7 docs <libraryId> "<specific question>"`
+   Be specific (e.g. `"JWT auth in Express"`, not `"auth"`).
+3. **Cap:** ≤ **3** Context7 calls per question; use the best result and note if incomplete.
 
-```
-ctx7 library "<name>" "<intent query>"
-ctx7 docs <libraryId> "<question>"
-```
+**Never** include secrets, credentials, or PII in queries.
 
-**Cap:** at most **3** Context7 invocations per question; then use the best result and say if incomplete.
+## Errors
 
-**Never** put secrets in queries (keys, passwords, credentials, PII, proprietary code).
-
-## Resolve (`ctx7 library`)
-
-Pick best match by name fit, snippet count, reputation (prefer High/Medium). Versioned: `ctx7 docs /vercel/next.js/v14.3.0-canary.87 "…"`. If ambiguous, ask.
-
-## Query (`ctx7 docs`)
-
-Be specific (e.g. `"JWT auth in Express"`, not `"auth"`); vague one-word queries yield weak results.
-
-## Quota errors
-
-Quota exceeded? Suggest `ctx7 login` or `CONTEXT7_API_KEY`; if the user skips auth, warn answers may be outdated.
+- **Quota exceeded** — suggest `ctx7 login` or setting `CONTEXT7_API_KEY`. If the user skips auth, warn answers may be stale.
 
 ## Output
 
-Unless you encounter errors or odd behavior, **DO NOT** report the steps you took to find the docs. Simply report your findings as they relate to the user's query.
+Do **not** narrate lookup steps. Report findings directly as they relate to the user's query.

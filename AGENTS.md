@@ -18,7 +18,7 @@ Portable skills and rules for AI agents.
   --copy              # copy instead of symlink (Claude/Gemini)
   --targets claude,gemini,antigravity,cursor   # force targets if detection misses one (antigravity uses ~/.gemini/ like gemini)
   --no-hooks          # skip hook deploy; full GLOBAL_AGENTS.md (keep hookable sections)
-  --no-skills         # do not copy skills/ to user skills dirs
+  --no-skills         # skip copying skills/ to Claude/Cursor (Gemini uses ~/.agents/skills/)
   --dry-run           # preview without writing
 ```
 
@@ -28,7 +28,7 @@ Portable skills and rules for AI agents.
 
 [`skills/`](skills/) — one directory per skill with required [`SKILL.md`](skills/find-docs/SKILL.md) (YAML `name`, `description`, body). Optional: `scripts/`, `references/`, `assets/`.
 
-By default (unless `install --no-skills`), the installer **copies** into each installed agent’s user skills dir (same `--targets` as context): Claude `~/.claude/skills/<name>/`; Gemini / Antigravity `~/.gemini/skills/<name>/`; Cursor `~/.cursor/skills/<name>/`.
+By default (unless `install --no-skills`), the installer **copies** into Claude and Cursor user skills dirs (same `--targets` as context): `~/.claude/skills/<name>/`, `~/.cursor/skills/<name>/`. **Gemini CLI and Antigravity** discover user skills at `~/.agents/skills/` (and `~/.gemini/skills/`); keep this repo at `~/.agents` so `skills/` is picked up without copying.
 
 Stick to portable frontmatter (`name`, `description`) for cross-tool behavior; optional agent-specific keys (e.g. Cursor `disable-model-invocation`, Claude `allowed-tools`) are ignored elsewhere.
 

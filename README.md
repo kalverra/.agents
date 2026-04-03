@@ -11,7 +11,7 @@ If you use more than one coding agent, this repo is the single place to edit “
 | **[`GLOBAL_AGENTS.md`](GLOBAL_AGENTS.md)**                                 | Your **global** context: who you are, session habits, doc and web tooling. This is the file you edit most often.                     |
 | **[`AGENTS.md`](AGENTS.md)**                                               | **Repo meta**: how to deploy, how hooks work, venv for scripts. Orient here when changing the machinery, not the global prompt text. |
 | **[`hooks/`](hooks/)**                                                     | **Runtime hooks**: installed with `install` by default (`--no-hooks` to skip).                                                       |
-| **[`skills/`](skills/)**                                                   | **Agent skills**: reusable workflows in `SKILL.md` form; copied on `install` by default (`--no-skills` to skip).                     |
+| **[`skills/`](skills/)**                                                   | **Agent skills**: reusable workflows in `SKILL.md` form; copied to Claude/Cursor on `install` by default; Gemini reads `~/.agents/skills/` (`--no-skills` to skip copies). |
 | **[`cmd/`](cmd/)**                                                         | **Go binaries** that back specific skills (e.g. `pr-review`). Each subdirectory is a standalone Go module.                           |
 | **[`scripts/install-global-agents.py`](scripts/install-global-agents.py)** | Installs context, hooks, and skills by default; `--no-hooks` / `--no-skills` to skip.                                                |
 | **[`docs/global-agents-smoke.md`](docs/global-agents-smoke.md)**           | Manual smoke prompts to check that deployed context behaves the way you expect.                                                      |
@@ -30,7 +30,7 @@ From this directory:
 ./scripts/install-global-agents.py install
 ```
 
-That detects which agents are present, **symlinks** (or copies with `--copy`) `GLOBAL_AGENTS.md`, **deploys hooks** (unless `--no-hooks`), and **copies skills** (unless `--no-skills`). **Antigravity** uses the same `~/.gemini/` files as Gemini CLI—one write updates both.
+That detects which agents are present, **symlinks** (or copies with `--copy`) `GLOBAL_AGENTS.md`, **deploys hooks** (unless `--no-hooks`), and **copies skills** to Claude/Cursor (unless `--no-skills`). Gemini/Antigravity load skills from **`~/.agents/skills/`** (no copy). **Antigravity** uses the same `~/.gemini/` files as Gemini CLI for context and hooks—one write updates both.
 
 **First time?** After install, open a **new** chat in each product and skim [the smoke doc](docs/global-agents-smoke.md) if you want a quick behavioral check.
 
@@ -48,7 +48,7 @@ Details and file layout: **[`AGENTS.md` → Hooks](AGENTS.md#hooks)**.
 
 ## Agent skills
 
-Skills are directories under [`skills/`](skills/) with a **`SKILL.md`** file (frontmatter + instructions). **`install`** copies them into each product’s user skills folder by default. Skip with **`install --no-skills`**. Combine with **`--targets`** as needed. Authoring details: **[`AGENTS.md` → Skills](AGENTS.md#skills)**.
+Skills are directories under [`skills/`](skills/) with a **`SKILL.md`** file (frontmatter + instructions). **`install`** copies them into **Claude** and **Cursor** user skills dirs by default; **Gemini/Antigravity** discover **`~/.agents/skills/`** instead (see Gemini CLI docs). Skip copies with **`install --no-skills`**. Combine with **`--targets`** as needed. Authoring details: **[`AGENTS.md` → Skills](AGENTS.md#skills)**.
 
 Some skills rely on a Go program under [`cmd/`](cmd/). For example, `pr-review` fetches GitHub PR context via GraphQL—build `cmd/pr-review/pr-review` once, then run it by full path (see [`skills/pr-review/SKILL.md`](skills/pr-review/SKILL.md)); no need to put it on `PATH`.
 
@@ -67,7 +67,7 @@ python3 -m venv scripts/.venv
 - Run **`discover`** whenever you install a new agent or change paths; it only prints where things would go.
 - Use **`--dry-run`** on **`install`** to preview merges and writes without changing files.
 - Use **`--targets claude,gemini,antigravity,cursor`** if detection misses a tool but you still want files written (`antigravity` deploys to the same paths as `gemini`).
-- Use **`--no-skills`** if you only want global context + hooks without copying [`skills/`](skills/).
+- Use **`--no-skills`** if you only want global context + hooks without copying [`skills/`](skills/) into Claude/Cursor (Gemini still uses `~/.agents/skills/` if present).
 
 For exact flags and contributor notes, keep **[`AGENTS.md`](AGENTS.md)** as the reference.
 

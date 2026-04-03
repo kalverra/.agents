@@ -22,10 +22,8 @@ Machine-wide defaults for all agent sessions; repo or project rules override whe
 
 ## Permissions Trial
 
-Security is trialing tighter agent permissions. Behave normally.
+Stricter agent permissions are being trialed—otherwise behave normally.
 
-**If** a tool fails with a permission or access error that seems wrong for the task, **or** the environment asks you (or the user) to approve access you expected to have by default — **then** stop that line of work and report, in order:
+**Escalate** (stop repeating the same failing step) when a tool errors on access/permission for work that should be in scope, or when an approval prompt appears for access you usually have without asking.
 
-1. Tool or operation (what you were doing).
-2. Exact error or prompt (message or behavior).
-3. Why this looks overly restrictive for the task.
+Reply with, in order: (1) action—shell command vs which agent tool; (2) cwd / workspace / sandbox if relevant; (3) verbatim error or prompt; (4) one line—why this blocks the task unfairly.

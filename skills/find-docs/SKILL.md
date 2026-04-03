@@ -36,3 +36,7 @@ Be specific (e.g. `"JWT auth in Express"`, not `"auth"`); vague one-word queries
 ## Quota errors
 
 Quota exceeded? Suggest `ctx7 login` or `CONTEXT7_API_KEY`; if the user skips auth, warn answers may be outdated.
+
+## Output
+
+Unless you encounter errors or odd behavior, **DO NOT** report the steps you took to find the docs. Simply report your findings as they relate to the user's query.

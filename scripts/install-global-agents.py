@@ -399,17 +399,18 @@ def install_hooks_cursor(hooks_dir: Path, *, dry_run: bool) -> None:
 def cmd_discover(verbose: bool) -> int:
     print("Discovery (signals only — tools need not be running):\n")
     n_skills = repo_skill_count()
-    skills_repo = (
-        f"{n_skills} in repo (copied on install by default)"
-        if n_skills
-        else "none in repo/skills/"
+    skills_repo = f"{n_skills} in repo skills/" if n_skills else "none in repo/skills/"
+    gemini_skills_note = (
+        f"{skills_repo}; Gemini/Antigravity discover ~/.agents/skills (and ~/.gemini/skills); "
+        "install does not copy there"
     )
     any_yes = False
     if detect_claude(verbose):
         print(f"  claude-code   yes   context -> {Path.home() / '.claude/CLAUDE.md'}")
         print(f"                      hooks   -> {Path.home() / '.claude/settings.json'} (PreToolUse)")
         print(
-            f"                      skills  -> {Path.home() / '.claude' / 'skills'}/ ({skills_repo})"
+            f"                      skills  -> {Path.home() / '.claude' / 'skills'}/ "
+            f"({skills_repo}; copy on install)"
         )
         any_yes = True
     else:
@@ -421,7 +422,7 @@ def cmd_discover(verbose: bool) -> int:
     if gemini_ok:
         print(f"  gemini-cli    yes   context -> {gemini_config_dir() / 'GEMINI.md'}")
         print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool)")
-        print(f"                      skills  -> {gemini_config_dir() / 'skills'}/ ({skills_repo})")
+        print(f"                      skills  -> {Path.home() / '.agents' / 'skills'}/ ({gemini_skills_note})")
         any_yes = True
     else:
         print("  gemini-cli    no    (no gemini/gemini-cli in PATH, no config dir)")
@@ -430,7 +431,7 @@ def cmd_discover(verbose: bool) -> int:
         print(f"  antigravity   yes   context -> {gemini_config_dir() / 'GEMINI.md'} (shared with gemini-cli)")
         print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool, shared)")
         print(
-            f"                      skills  -> {gemini_config_dir() / 'skills'}/ (shared; {skills_repo})"
+            f"                      skills  -> {Path.home() / '.agents' / 'skills'}/ (shared; {gemini_skills_note})"
         )
         any_yes = True
     else:
@@ -452,7 +453,8 @@ def cmd_discover(verbose: bool) -> int:
         )
         print(f"                      hooks   -> {Path.home() / '.cursor/hooks.json'} (preToolUse)")
         print(
-            f"                      skills  -> {Path.home() / '.cursor' / 'skills'}/ ({skills_repo})"
+            f"                      skills  -> {Path.home() / '.cursor' / 'skills'}/ "
+            f"({skills_repo}; copy on install)"
         )
         any_yes = True
     else:
@@ -580,8 +582,6 @@ def cmd_install(
         else:
             if did_claude:
                 copy_skills_to_user_dir(Path.home() / ".claude" / "skills", dry_run=dry_run)
-            if did_gemini:
-                copy_skills_to_user_dir(gemini_config_dir() / "skills", dry_run=dry_run)
             if did_cursor:
                 copy_skills_to_user_dir(Path.home() / ".cursor" / "skills", dry_run=dry_run)
 
@@ -638,8 +638,9 @@ def main() -> int:
     p_ins.add_argument(
         "--no-skills",
         action="store_true",
-        help="Do not copy repo skills/ to user skills dirs "
-        "(~/.claude/skills/, ~/.gemini/skills/, ~/.cursor/skills/).",
+        help="Do not copy repo skills/ to Claude/Cursor user skills dirs "
+        "(~/.claude/skills/, ~/.cursor/skills/). Gemini/Antigravity use ~/.agents/skills/ per "
+        "Gemini CLI docs — no copy from this installer.",
     )
 
     args = parser.parse_args()

@@ -18,10 +18,38 @@ Portable skills and rules for AI agents.
   --copy              # copy instead of symlink (Claude/Gemini)
   --targets claude,gemini,antigravity,cursor   # force targets if detection misses one (antigravity uses ~/.gemini/ like gemini)
   --with-hooks        # deploy rtk hooks + strip rtk instruction from context
+  --with-skills       # copy skills/ to each agent's user skills dir (see below)
   --dry-run           # preview without writing
 ```
 
 **Verify:** After deploy, run the prompts in [`docs/global-agents-smoke.md`](docs/global-agents-smoke.md) in a fresh chat per agent.
+
+## Skills
+
+[`skills/`](skills/) — one directory per skill with required [`SKILL.md`](skills/find-docs/SKILL.md) (YAML `name`, `description`, body). Optional: `scripts/`, `references/`, `assets/`.
+
+With `--with-skills`, the installer **copies** into each installed agent’s user skills dir (same `--targets` as context): Claude `~/.claude/skills/<name>/`; Gemini / Antigravity `~/.gemini/skills/<name>/`; Cursor `~/.cursor/skills/<name>/`.
+
+Stick to portable frontmatter (`name`, `description`) for cross-tool behavior; optional agent-specific keys (e.g. Cursor `disable-model-invocation`, Claude `allowed-tools`) are ignored elsewhere.
+
+This script does **not** touch project-level skills in a repo’s `.claude/skills/`, `.gemini/skills/`, or `.cursor/skills/`.
+
+## Go Binaries
+
+[`cmd/`](cmd/) contains Go CLI tools that back specific skills. Each subdirectory is a standalone Go module.
+
+| Binary | Skill | Purpose |
+|--------|-------|---------|
+| `cmd/pr-review/` | `skills/pr-review/` | Fetch open PR context (reviews, threads, comments) via GitHub GraphQL and output LLM-friendly markdown. |
+
+Build once in that module, then run by full path (not `PATH`):
+
+```
+cd cmd/pr-review && go build -o pr-review .
+~/.agents/cmd/pr-review/pr-review --dir /path/to/repo   # adjust ~/.agents if needed
+```
+
+For development only you can use `go run .` in `cmd/pr-review`; the skill expects the built binary to avoid compile latency.
 
 ## Hooks
 
@@ -48,7 +76,7 @@ python3 -m venv scripts/.venv
 ./scripts/.venv/bin/pip install -r scripts/requirements.txt
 ```
 
-`count-tokens.py` needs deps; `install-global-agents.py` is stdlib-only.
+`count-tokens.py` needs deps; `install-global-agents.py` is stdlib-only. **`./scripts/token-budget.sh`** writes [`.token-budget`](.token-budget) with token counts for `GLOBAL_AGENTS.md` and every `skills/**/*.md` (`cl100k_base`, same as `count-tokens.py` default). Refresh and stage `.token-budget` when counts change; **pre-commit** regenerates it and fails if the working tree differs from the index (run the script and `git add .token-budget`).
 
 ## Docs
 

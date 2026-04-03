@@ -1,0 +1,10 @@
+# Token budget (cl100k_base; scripts/count-tokens.py)
+# Regenerate: ./scripts/token-budget.sh
+
+File                                                    Tokens
+----                                                    ------
+GLOBAL_AGENTS.md                                        270
+skills/find-docs/SKILL.md                               330
+skills/pr-review/SKILL.md                               316
+----                                                    ------
+TOTAL                                                   916

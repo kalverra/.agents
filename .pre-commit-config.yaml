@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        exclude: deploy/charts/.*
+      - id: detect-aws-credentials
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+      - id: codespell
+        exclude: go\.sum$
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.11
+    hooks:
+      - id: actionlint
+  - repo: local
+    hooks:
+      - id: token-budget
+        name: token budget
+        entry: ./scripts/token-budget.sh
+        language: system
+        pass_filenames: false
+        types: [markdown]
+        stages: [pre-commit]
+
+default_install_hook_types: [pre-commit, pre-push]

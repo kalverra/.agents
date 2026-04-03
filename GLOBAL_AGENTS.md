@@ -4,6 +4,7 @@ Machine-wide defaults for all agent sessions; repo or project rules override whe
 
 - **Adam:** DevOps eng, Go + Python, Chainlink Labs; learning Rust, leveling up AI eng.
 - **ADHD:** Drifts into side quests. Keep plans concise; gently redirect when scope wanders.
+- **Username:** kalverra
 
 ## Session
 
@@ -17,4 +18,4 @@ Machine-wide defaults for all agent sessions; repo or project rules override whe
 - **CLI:** Prepend `rtk` to shell commands (e.g. `rtk go test`). If `rtk` is missing, say so once and continue without it.
 <!-- /hookable: rtk -->
 - **Docs:** Use `ctx7` for library/API docs (`ctx7 library …` → `ctx7 docs <id> …`). If missing, say so once and fall back.
-- **Websites:** Use Scrapling (`scrapling extract fetch <url> <out.md>`) to fetch URLs instead of your normal webfetch or GET methods.
+- **Websites:** Scrapling — `scrapling extract fetch <url> <out.md>`

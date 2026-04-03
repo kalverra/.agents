@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Install GLOBAL_AGENTS.md (and optional hooks) for Claude Code, Gemini CLI,
+"""Install GLOBAL_AGENTS.md (and optional hooks, skills) for Claude Code, Gemini CLI,
 Antigravity, and Cursor.
 
 Usage:
   ./scripts/install-global-agents.py discover [--verbose]
-  ./scripts/install-global-agents.py install [--copy] [--dry-run] [--verbose] [--targets a,b,c] [--with-hooks]
+  ./scripts/install-global-agents.py install [--copy] [--dry-run] [--verbose] [--targets a,b,c] [--with-hooks] [--with-skills]
 """
 
 from __future__ import annotations
@@ -38,6 +38,10 @@ def hooks_src_dir() -> Path:
     return repo_root() / "hooks"
 
 
+def skills_src_dir() -> Path:
+    return repo_root() / "skills"
+
+
 HOOKS_DEPLOY_DIR = Path.home() / ".agents-hooks"
 
 
@@ -67,6 +71,44 @@ def target_wanted(name: str, targets: list[str] | None) -> bool:
 
 def forcing_targets(targets: list[str] | None) -> bool:
     return bool(targets)
+
+
+def iter_repo_skill_dirs() -> list[Path]:
+    """Return sorted skill roots that contain SKILL.md (one level under skills/)."""
+    root = skills_src_dir()
+    if not root.is_dir():
+        return []
+    out: list[Path] = []
+    for p in sorted(root.iterdir()):
+        if p.is_dir() and not p.name.startswith("."):
+            if (p / "SKILL.md").is_file():
+                out.append(p)
+    return out
+
+
+def repo_skill_count() -> int:
+    return len(iter_repo_skill_dirs())
+
+
+def copy_skills_to_user_dir(dest_skills_root: Path, *, dry_run: bool) -> int:
+    """Copy each repo skill directory under dest_skills_root/<skill-name>/. Returns count copied."""
+    skills = iter_repo_skill_dirs()
+    if not skills:
+        return 0
+    if dry_run:
+        for sdir in skills:
+            print(f"[dry-run] copytree {sdir} -> {dest_skills_root / sdir.name}")
+        return len(skills)
+    dest_skills_root.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for sdir in skills:
+        dst = dest_skills_root / sdir.name
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(sdir, dst)
+        n += 1
+    print(f"Copied {n} skill(s) to {dest_skills_root}")
+    return n
 
 
 # ---------------------------------------------------------------------------
@@ -354,10 +396,19 @@ def install_hooks_cursor(hooks_dir: Path, *, dry_run: bool) -> None:
 
 def cmd_discover(verbose: bool) -> int:
     print("Discovery (signals only — tools need not be running):\n")
+    n_skills = repo_skill_count()
+    skills_repo = (
+        f"{n_skills} in repo (deploy: install --with-skills)"
+        if n_skills
+        else "none in repo/skills/"
+    )
     any_yes = False
     if detect_claude(verbose):
         print(f"  claude-code   yes   context -> {Path.home() / '.claude/CLAUDE.md'}")
         print(f"                      hooks   -> {Path.home() / '.claude/settings.json'} (PreToolUse)")
+        print(
+            f"                      skills  -> {Path.home() / '.claude' / 'skills'}/ ({skills_repo})"
+        )
         any_yes = True
     else:
         print("  claude-code   no    (no claude in PATH, no ~/.claude)")
@@ -368,6 +419,7 @@ def cmd_discover(verbose: bool) -> int:
     if gemini_ok:
         print(f"  gemini-cli    yes   context -> {gemini_config_dir() / 'GEMINI.md'}")
         print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool)")
+        print(f"                      skills  -> {gemini_config_dir() / 'skills'}/ ({skills_repo})")
         any_yes = True
     else:
         print("  gemini-cli    no    (no gemini/gemini-cli in PATH, no config dir)")
@@ -375,6 +427,9 @@ def cmd_discover(verbose: bool) -> int:
     if antigravity_ok:
         print(f"  antigravity   yes   context -> {gemini_config_dir() / 'GEMINI.md'} (shared with gemini-cli)")
         print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool, shared)")
+        print(
+            f"                      skills  -> {gemini_config_dir() / 'skills'}/ (shared; {skills_repo})"
+        )
         any_yes = True
     else:
         print(
@@ -394,6 +449,9 @@ def cmd_discover(verbose: bool) -> int:
             "(best-effort; see note)"
         )
         print(f"                      hooks   -> {Path.home() / '.cursor/hooks.json'} (preToolUse)")
+        print(
+            f"                      skills  -> {Path.home() / '.cursor' / 'skills'}/ ({skills_repo})"
+        )
         any_yes = True
     else:
         print(
@@ -402,7 +460,9 @@ def cmd_discover(verbose: bool) -> int:
 
     print()
     if any_yes:
-        print(f"Run: {script_path()} install [--copy] [--dry-run] [--with-hooks]")
+        print(
+            f"Run: {script_path()} install [--copy] [--dry-run] [--with-hooks] [--with-skills]"
+        )
     else:
         print(
             "No known agent paths detected. Install tools first, or use "
@@ -425,6 +485,7 @@ def cmd_install(
     verbose: bool,
     targets: list[str] | None,
     with_hooks: bool,
+    with_skills: bool,
 ) -> int:
     src = global_src()
     if not src.is_file():
@@ -436,6 +497,9 @@ def cmd_install(
         hooks_dir = deploy_hook_scripts(dry_run=dry_run)
 
     installed = False
+    did_claude = False
+    did_gemini = False
+    did_cursor = False
 
     if target_wanted("claude", targets):
         if detect_claude(verbose) or forcing_targets(targets):
@@ -448,6 +512,7 @@ def cmd_install(
             else:
                 do_link_or_copy(src, Path.home() / ".claude/CLAUDE.md", use_copy=use_copy, dry_run=dry_run)
             installed = True
+            did_claude = True
 
     gemini_paths_requested = target_wanted("gemini", targets) or target_wanted(
         "antigravity", targets
@@ -466,6 +531,7 @@ def cmd_install(
             else:
                 do_link_or_copy(src, gemini_config_dir() / "GEMINI.md", use_copy=use_copy, dry_run=dry_run)
             installed = True
+            did_gemini = True
 
     if target_wanted("cursor", targets):
         if detect_cursor(verbose) or forcing_targets(targets):
@@ -475,6 +541,21 @@ def cmd_install(
             if with_hooks:
                 install_hooks_cursor(hooks_dir, dry_run=dry_run)
             installed = True
+            did_cursor = True
+
+    if with_skills:
+        if repo_skill_count() == 0:
+            print(
+                "Note: --with-skills but no skill dirs with SKILL.md under skills/; skipping skills deploy.",
+                file=sys.stderr,
+            )
+        else:
+            if did_claude:
+                copy_skills_to_user_dir(Path.home() / ".claude" / "skills", dry_run=dry_run)
+            if did_gemini:
+                copy_skills_to_user_dir(gemini_config_dir() / "skills", dry_run=dry_run)
+            if did_cursor:
+                copy_skills_to_user_dir(Path.home() / ".cursor" / "skills", dry_run=dry_run)
 
     if not installed:
         sp = script_path()
@@ -496,14 +577,17 @@ def parse_targets(s: str | None) -> list[str] | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Install GLOBAL_AGENTS.md (and optional hooks) for Claude Code, Gemini CLI, Antigravity, and Cursor."
+        description="Install GLOBAL_AGENTS.md (and optional hooks, skills) for Claude Code, Gemini CLI, Antigravity, and Cursor."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_disc = sub.add_parser("discover", help="List detected agents, install paths, and hook targets")
     p_disc.add_argument("--verbose", "-v", action="store_true")
 
-    p_ins = sub.add_parser("install", help="Deploy GLOBAL_AGENTS.md and optional hooks to tool paths")
+    p_ins = sub.add_parser(
+        "install",
+        help="Deploy GLOBAL_AGENTS.md and optional hooks/skills to tool paths",
+    )
     p_ins.add_argument(
         "--copy",
         action="store_true",
@@ -523,6 +607,12 @@ def main() -> int:
         help="Deploy rtk-prepend hooks and merge into agent settings. "
         "Strips hookable sections from deployed markdown.",
     )
+    p_ins.add_argument(
+        "--with-skills",
+        action="store_true",
+        help="Copy repo skills/ to each installed agent's user skills directory "
+        "(~/.claude/skills/, ~/.gemini/skills/, ~/.cursor/skills/).",
+    )
 
     args = parser.parse_args()
     if args.command == "discover":
@@ -534,6 +624,7 @@ def main() -> int:
             verbose=args.verbose,
             targets=parse_targets(args.targets),
             with_hooks=args.with_hooks,
+            with_skills=args.with_skills,
         )
     return 1
 

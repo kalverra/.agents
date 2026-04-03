@@ -19,3 +19,13 @@ Machine-wide defaults for all agent sessions; repo or project rules override whe
 <!-- /hookable: rtk -->
 - **Docs:** Use `ctx7` for library/API docs (`ctx7 library …` → `ctx7 docs <id> …`). If missing, say so once and fall back.
 - **Websites:** Scrapling — `scrapling extract fetch <url> <out.md>`
+
+## Permissions Trial
+
+Security is trialing tighter agent permissions. Behave normally.
+
+**If** a tool fails with a permission or access error that seems wrong for the task, **or** the environment asks you (or the user) to approve access you expected to have by default — **then** stop that line of work and report, in order:
+
+1. Tool or operation (what you were doing).
+2. Exact error or prompt (message or behavior).
+3. Why this looks overly restrictive for the task.

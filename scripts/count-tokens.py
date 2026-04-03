@@ -12,6 +12,7 @@ Usage:
   ./scripts/count-tokens.py -s 'hello world'
   ./scripts/count-tokens.py --model gpt-4o file.txt
   ./scripts/count-tokens.py --encoding o200k_base file.txt
+  ./scripts/count-tokens.py --strip-hookable-markers GLOBAL_AGENTS.md
 """
 
 from __future__ import annotations
@@ -19,6 +20,12 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from hookable_markdown import strip_hookable_delimiter_lines  # noqa: E402
 
 
 def main() -> int:
@@ -58,6 +65,12 @@ def main() -> int:
         action="store_true",
         help="Print encoding, character count, and token count",
     )
+    parser.add_argument(
+        "--strip-hookable-markers",
+        action="store_true",
+        help="Remove standalone <!-- hookable / /hookable --> lines before counting "
+        "(aligns with deployed GLOBAL_AGENTS.md; inner markdown kept).",
+    )
     args = parser.parse_args()
 
     if args.string is not None:
@@ -66,6 +79,9 @@ def main() -> int:
         text = Path(args.path).read_text(encoding="utf-8")
     else:
         text = sys.stdin.read()
+
+    if args.strip_hookable_markers:
+        text = strip_hookable_delimiter_lines(text)
 
     if args.model:
         try:

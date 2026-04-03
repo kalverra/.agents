@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Install GLOBAL_AGENTS.md (and optional hooks, skills) for Claude Code, Gemini CLI,
+"""Install GLOBAL_AGENTS.md (and by default hooks + skills) for Claude Code, Gemini CLI,
 Antigravity, and Cursor.
+
+Depends on repo-local hookable_markdown (same directory); no PyPI packages.
 
 Usage:
   ./scripts/install-global-agents.py discover [--verbose]
-  ./scripts/install-global-agents.py install [--copy] [--dry-run] [--verbose] [--targets a,b,c] [--with-hooks] [--with-skills]
+  ./scripts/install-global-agents.py install [--copy] [--dry-run] [--verbose] [--targets a,b,c] [--no-hooks] [--no-skills]
 """
 
 from __future__ import annotations
@@ -12,10 +14,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import sys
 from pathlib import Path
+
+from hookable_markdown import strip_hookable_delimiter_lines, strip_hookable_sections
 
 
 # ---------------------------------------------------------------------------
@@ -182,22 +185,6 @@ def detect_cursor(verbose: bool) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Hookable-section stripping
-# ---------------------------------------------------------------------------
-
-_HOOKABLE_RE = re.compile(
-    r"^<!-- hookable: \w+ -->\s*\n"
-    r"(.*?\n)*?"
-    r"<!-- /hookable: \w+ -->\s*\n",
-    re.MULTILINE,
-)
-
-
-def strip_hookable_sections(text: str) -> str:
-    return _HOOKABLE_RE.sub("", text)
-
-
-# ---------------------------------------------------------------------------
 # Context deployment
 # ---------------------------------------------------------------------------
 
@@ -222,21 +209,34 @@ def do_link_or_copy(
         print(f"Symlinked: {dest} -> {src.resolve()}")
 
 
-def write_filtered_copy(
+def deploy_global_agents_markdown(
     src: Path,
     dest: Path,
     *,
-    strip_hooks: bool,
+    with_hooks: bool,
+    use_copy: bool,
     dry_run: bool,
 ) -> None:
-    """Write a filtered copy of the source file (always a copy, never symlink)."""
+    """Deploy GLOBAL_AGENTS.md to Claude/Gemini .md path.
+
+    With hooks: strip entire hookable regions; always write a file.
+    Without hooks: strip <!-- hookable / /hookable --> lines only (keep body); symlink/copy if unchanged else write.
+    """
     if dry_run:
-        print(f"[dry-run] write {dest} (filtered copy, strip_hooks={strip_hooks})")
+        print(
+            f"[dry-run] write {dest} (with_hooks={with_hooks}, copy fallback={use_copy})"
+        )
         return
-    body = src.read_text(encoding="utf-8")
-    if strip_hooks:
-        body = strip_hookable_sections(body)
+    raw = src.read_text(encoding="utf-8")
+    if with_hooks:
+        body = strip_hookable_sections(raw)
+    else:
+        body = strip_hookable_delimiter_lines(raw)
+        if body == raw:
+            do_link_or_copy(src, dest, use_copy=use_copy, dry_run=False)
+            return
     dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.unlink(missing_ok=True)
     dest.write_text(body, encoding="utf-8")
     print(f"Wrote: {dest}")
 
@@ -255,6 +255,8 @@ def write_cursor_mdc(
     body = global_path.read_text(encoding="utf-8")
     if strip_hooks:
         body = strip_hookable_sections(body)
+    else:
+        body = strip_hookable_delimiter_lines(body)
     root = repo_root()
     header = f"""---
 description: Machine-wide context from {root}/GLOBAL_AGENTS.md
@@ -398,7 +400,7 @@ def cmd_discover(verbose: bool) -> int:
     print("Discovery (signals only — tools need not be running):\n")
     n_skills = repo_skill_count()
     skills_repo = (
-        f"{n_skills} in repo (deploy: install --with-skills)"
+        f"{n_skills} in repo (copied on install by default)"
         if n_skills
         else "none in repo/skills/"
     )
@@ -461,7 +463,7 @@ def cmd_discover(verbose: bool) -> int:
     print()
     if any_yes:
         print(
-            f"Run: {script_path()} install [--copy] [--dry-run] [--with-hooks] [--with-skills]"
+            f"Run: {script_path()} install [--copy] [--dry-run] [--no-hooks] [--no-skills]"
         )
     else:
         print(
@@ -484,9 +486,11 @@ def cmd_install(
     dry_run: bool,
     verbose: bool,
     targets: list[str] | None,
-    with_hooks: bool,
-    with_skills: bool,
+    no_hooks: bool,
+    no_skills: bool,
 ) -> int:
+    with_hooks = not no_hooks
+    with_skills = not no_skills
     src = global_src()
     if not src.is_file():
         print(f"Missing source file: {src}", file=sys.stderr)
@@ -507,10 +511,22 @@ def cmd_install(
                 warn = Path.home() / ".claude/CLAUDE.md"
                 print(f"Warning: claude-code not detected; writing {warn} anyway (--targets).")
             if with_hooks:
-                write_filtered_copy(src, Path.home() / ".claude/CLAUDE.md", strip_hooks=True, dry_run=dry_run)
+                deploy_global_agents_markdown(
+                    src,
+                    Path.home() / ".claude/CLAUDE.md",
+                    with_hooks=True,
+                    use_copy=use_copy,
+                    dry_run=dry_run,
+                )
                 install_hooks_claude(hooks_dir, dry_run=dry_run)
             else:
-                do_link_or_copy(src, Path.home() / ".claude/CLAUDE.md", use_copy=use_copy, dry_run=dry_run)
+                deploy_global_agents_markdown(
+                    src,
+                    Path.home() / ".claude/CLAUDE.md",
+                    with_hooks=False,
+                    use_copy=use_copy,
+                    dry_run=dry_run,
+                )
             installed = True
             did_claude = True
 
@@ -526,10 +542,22 @@ def cmd_install(
                     f"Warning: gemini-cli / antigravity not detected; writing {dest} anyway (--targets)."
                 )
             if with_hooks:
-                write_filtered_copy(src, gemini_config_dir() / "GEMINI.md", strip_hooks=True, dry_run=dry_run)
+                deploy_global_agents_markdown(
+                    src,
+                    gemini_config_dir() / "GEMINI.md",
+                    with_hooks=True,
+                    use_copy=use_copy,
+                    dry_run=dry_run,
+                )
                 install_hooks_gemini(hooks_dir, dry_run=dry_run)
             else:
-                do_link_or_copy(src, gemini_config_dir() / "GEMINI.md", use_copy=use_copy, dry_run=dry_run)
+                deploy_global_agents_markdown(
+                    src,
+                    gemini_config_dir() / "GEMINI.md",
+                    with_hooks=False,
+                    use_copy=use_copy,
+                    dry_run=dry_run,
+                )
             installed = True
             did_gemini = True
 
@@ -546,7 +574,7 @@ def cmd_install(
     if with_skills:
         if repo_skill_count() == 0:
             print(
-                "Note: --with-skills but no skill dirs with SKILL.md under skills/; skipping skills deploy.",
+                "Note: skills deploy requested but no skill dirs with SKILL.md under skills/; skipping.",
                 file=sys.stderr,
             )
         else:
@@ -577,7 +605,7 @@ def parse_targets(s: str | None) -> list[str] | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Install GLOBAL_AGENTS.md (and optional hooks, skills) for Claude Code, Gemini CLI, Antigravity, and Cursor."
+        description="Install GLOBAL_AGENTS.md, hooks, and skills for Claude Code, Gemini CLI, Antigravity, and Cursor (defaults); use --no-hooks / --no-skills to skip."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -586,7 +614,7 @@ def main() -> int:
 
     p_ins = sub.add_parser(
         "install",
-        help="Deploy GLOBAL_AGENTS.md and optional hooks/skills to tool paths",
+        help="Deploy GLOBAL_AGENTS.md, hooks, and skills to tool paths (use --no-* to skip)",
     )
     p_ins.add_argument(
         "--copy",
@@ -602,15 +630,15 @@ def main() -> int:
         "antigravity uses the same ~/.gemini/ paths as gemini. Forces writes even if not detected.",
     )
     p_ins.add_argument(
-        "--with-hooks",
+        "--no-hooks",
         action="store_true",
-        help="Deploy rtk-prepend hooks and merge into agent settings. "
-        "Strips hookable sections from deployed markdown.",
+        help="Skip hook deploy and settings merge. Deploy full GLOBAL_AGENTS.md "
+        "(keeps <!-- hookable: … --> sections in markdown).",
     )
     p_ins.add_argument(
-        "--with-skills",
+        "--no-skills",
         action="store_true",
-        help="Copy repo skills/ to each installed agent's user skills directory "
+        help="Do not copy repo skills/ to user skills dirs "
         "(~/.claude/skills/, ~/.gemini/skills/, ~/.cursor/skills/).",
     )
 
@@ -623,8 +651,8 @@ def main() -> int:
             dry_run=args.dry_run,
             verbose=args.verbose,
             targets=parse_targets(args.targets),
-            with_hooks=args.with_hooks,
-            with_skills=args.with_skills,
+            no_hooks=args.no_hooks,
+            no_skills=args.no_skills,
         )
     return 1
 

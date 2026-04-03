@@ -1,10 +1,10 @@
-# Token budget (cl100k_base; scripts/count-tokens.py)
+# Token budget (cl100k_base; scripts/count-tokens.py --strip-hookable-markers)
 # Regenerate: ./scripts/token-budget.sh
 
 File                                                    Tokens
 ----                                                    ------
-GLOBAL_AGENTS.md                                        270
+GLOBAL_AGENTS.md                                        255
 skills/find-docs/SKILL.md                               330
 skills/pr-review/SKILL.md                               316
 ----                                                    ------
-TOTAL                                                   916
+TOTAL                                                   901

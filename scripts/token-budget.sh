@@ -22,7 +22,7 @@ while IFS= read -r line; do
 done < <(find "${REPO_ROOT}/skills" -type f -name '*.md' 2>/dev/null | sort)
 
 {
-  printf '# Token budget (cl100k_base; scripts/count-tokens.py)\n'
+  printf '# Token budget (cl100k_base; scripts/count-tokens.py --strip-hookable-markers)\n'
   printf '# Regenerate: ./scripts/token-budget.sh\n'
   printf '\n'
   printf '%-55s %s\n' "File" "Tokens"
@@ -31,7 +31,7 @@ done < <(find "${REPO_ROOT}/skills" -type f -name '*.md' 2>/dev/null | sort)
   for f in "${files[@]}"; do
     [[ -f "$f" ]] || continue
     rel="${f#"${REPO_ROOT}/"}"
-    n=$("$PYTHON" "$COUNT" "$f")
+    n=$("$PYTHON" "$COUNT" --strip-hookable-markers "$f")
     total=$((total + n))
     printf '%-55s %d\n' "$rel" "$n"
   done

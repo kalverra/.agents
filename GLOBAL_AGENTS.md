@@ -18,9 +18,9 @@ Machine-wide defaults. Local rules take precedence.
 </session>
 
 <tools>
-<!-- hookable: rtk -->
+<hookable name="rtk">
 - CLI: Prepend rtk to shell commands (e.g., rtk go test). Warn once if missing.
-<!-- /hookable: rtk -->
+</hookable>
 - Docs: Use ctx7. Resolve via ctx7 library. Fall back if missing.
 - Web: Use scrapling: scrapling extract fetch <url> <out.md>.
 </tools>

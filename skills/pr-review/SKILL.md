@@ -1,30 +1,25 @@
 ---
 name: pr-review
-description: >-
-  Fetch open PR review comments and propose fixes.
+description: Fetch open PR review comments and propose fixes.
 ---
 
-# PR review analysis
+Fetch and analyze open PR comments.
 
-## Prerequisites
+<setup>
+- Path: ~/.agents/cmd/pr-review/pr-review
+- Build: cd ~/.agents/cmd/pr-review && go build -o pr-review .
+- Auth: GITHUB_TOKEN or gh auth login.
+</setup>
 
-- **Binary:** `~/.agents/cmd/pr-review/pr-review` (adjust if `.agents` is elsewhere).
-- **Build** (once): `cd ~/.agents/cmd/pr-review && go build -o pr-review .`
-- **Auth:** `GITHUB_TOKEN` or `gh auth login`.
+<workflow>
+1. Run: ~/.agents/cmd/pr-review/pr-review --dir <repo_path>
+2. Analyze unresolved threads. Classify as fix or misunderstanding.
+3. Plan fixes with file, function, and change.
+4. Ask before implementation. Do not reply on GitHub or auto-commit.
+</workflow>
 
-## Workflow
-
-1. **Run** against the user's repo (not `.agents`):
-   `~/.agents/cmd/pr-review/pr-review --dir /path/to/repo`
-   Optional: `--include-resolved` to show resolved threads.
-2. **For each unresolved thread:** read the conversation, check referenced code, classify as valid fix or misunderstanding.
-3. **Present a numbered plan:**
-   - Valid → concrete change (file, function, what/why).
-   - Disagreement → explain so the user can decide.
-   - **Ask before implementing.** Do **not** reply on GitHub, commit, or submit reviews.
-
-## Edge cases
-
-- No open PR → inform user and stop.
-- Zero unresolved threads → say PR looks clean; summarize review state.
-- Auth errors → relay the message (includes fix hints).
+<errors>
+- No PR: Inform and stop.
+- No threads: State PR is clean; summarize.
+- Auth error: Report and suggest fix.
+</errors>

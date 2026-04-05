@@ -358,28 +358,38 @@ def merge_hooks_into_settings(
     print(f"Merged hooks into {settings_path}")
 
 
-def install_hooks_claude(*, dry_run: bool) -> None:
-    if dry_run:
-        print("[dry-run] rtk init -g --auto-patch")
-        return
-    import subprocess
-    subprocess.run(["rtk", "init", "-g", "--auto-patch"], check=True)
+def install_hooks_claude(hooks_dir: Path, *, dry_run: bool) -> None:
+    snippet = load_snippet("claude-settings-snippet.json", hooks_dir)
+    merge_hooks_into_settings(
+        Path.home() / ".claude/settings.json",
+        snippet,
+        "PreToolUse",
+        match_field="command",
+        dry_run=dry_run,
+    )
 
 
-def install_hooks_gemini(*, dry_run: bool) -> None:
-    if dry_run:
-        print("[dry-run] rtk init -g --gemini --auto-patch")
-        return
-    import subprocess
-    subprocess.run(["rtk", "init", "-g", "--gemini", "--auto-patch"], check=True)
+def install_hooks_gemini(hooks_dir: Path, *, dry_run: bool) -> None:
+    snippet = load_snippet("gemini-settings-snippet.json", hooks_dir)
+    merge_hooks_into_settings(
+        gemini_config_dir() / "settings.json",
+        snippet,
+        "BeforeTool",
+        match_field="command",
+        dry_run=dry_run,
+    )
 
 
-def install_hooks_cursor(*, dry_run: bool) -> None:
-    if dry_run:
-        print("[dry-run] rtk init -g --agent cursor --auto-patch")
-        return
-    import subprocess
-    subprocess.run(["rtk", "init", "-g", "--agent", "cursor", "--auto-patch"], check=True)
+def install_hooks_cursor(hooks_dir: Path, *, dry_run: bool) -> None:
+    snippet = load_snippet("cursor-hooks-snippet.json", hooks_dir)
+    hooks_json = Path.home() / ".cursor/hooks.json"
+    merge_hooks_into_settings(
+        hooks_json,
+        snippet,
+        "preToolUse",
+        match_field="command",
+        dry_run=dry_run,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +498,10 @@ def cmd_install(
         print(f"Missing source file: {src}", file=sys.stderr)
         return 1
 
+    hooks_dir = HOOKS_DEPLOY_DIR
+    if with_hooks:
+        hooks_dir = deploy_hook_scripts(dry_run=dry_run)
+
     installed = False
     did_claude = False
     did_gemini = False
@@ -506,7 +520,7 @@ def cmd_install(
                     use_copy=use_copy,
                     dry_run=dry_run,
                 )
-                install_hooks_claude(dry_run=dry_run)
+                install_hooks_claude(hooks_dir, dry_run=dry_run)
             else:
                 deploy_global_agents_markdown(
                     src,
@@ -521,7 +535,10 @@ def cmd_install(
     gemini_paths_requested = target_wanted("gemini", targets) or target_wanted(
         "antigravity", targets
     )
-    gemini_stack_detected = detect_gemini(verbose) or detect_antigravity(verbose)
+    gemini_detected = detect_gemini(verbose)
+    antigravity_detected = detect_antigravity(verbose)
+    gemini_stack_detected = gemini_detected or antigravity_detected
+
     if gemini_paths_requested:
         if gemini_stack_detected or forcing_targets(targets):
             if not gemini_stack_detected and forcing_targets(targets):
@@ -529,23 +546,23 @@ def cmd_install(
                 print(
                     f"Warning: gemini-cli / antigravity not detected; writing {dest} anyway (--targets)."
                 )
-            if with_hooks:
-                deploy_global_agents_markdown(
-                    src,
-                    gemini_config_dir() / "GEMINI.md",
-                    with_hooks=True,
-                    use_copy=use_copy,
-                    dry_run=dry_run,
-                )
-                install_hooks_gemini(dry_run=dry_run)
-            else:
-                deploy_global_agents_markdown(
-                    src,
-                    gemini_config_dir() / "GEMINI.md",
-                    with_hooks=False,
-                    use_copy=use_copy,
-                    dry_run=dry_run,
-                )
+
+            is_antigravity_forced = forcing_targets(targets) and targets and "antigravity" in targets
+            needs_markdown_hooks = antigravity_detected or is_antigravity_forced
+            strip_markdown = with_hooks and not needs_markdown_hooks
+
+            deploy_global_agents_markdown(
+                src,
+                gemini_config_dir() / "GEMINI.md",
+                with_hooks=strip_markdown,
+                use_copy=use_copy,
+                dry_run=dry_run,
+            )
+
+            is_gemini_forced = forcing_targets(targets) and targets and "gemini" in targets
+            if with_hooks and (gemini_detected or is_gemini_forced):
+                install_hooks_gemini(hooks_dir, dry_run=dry_run)
+
             installed = True
             did_gemini = True
 
@@ -555,7 +572,7 @@ def cmd_install(
                 print("Warning: cursor dirs not detected; writing ~/.cursor/rules/global-agents.mdc anyway (--targets).")
             write_cursor_mdc(src, strip_hooks=with_hooks, dry_run=dry_run)
             if with_hooks:
-                install_hooks_cursor(dry_run=dry_run)
+                install_hooks_cursor(hooks_dir, dry_run=dry_run)
             installed = True
             did_cursor = True
 

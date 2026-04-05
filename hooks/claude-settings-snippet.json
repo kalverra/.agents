@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "rtk-prepend",
+            "command": "<HOOKS_DIR>/claude-rtk.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}

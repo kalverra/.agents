@@ -24,9 +24,11 @@ Go modules in cmd/ back skills.
 </binaries>
 
 <hooks>
-Execution behaviors in hooks/.
-- rtk-prepend.sh: Prepend rtk to shell commands.
-- Installer merges config and strips <!-- hookable -->.
+Execution behavior is handled natively via `rtk init`.
+- Gemini: `rtk init -g --gemini`
+- Cursor: `rtk init -g --agent cursor`
+- Claude: `rtk init -g`
+Installer handles this automatically.
 </hooks>
 
 <venv>

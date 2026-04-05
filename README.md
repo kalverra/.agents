@@ -10,10 +10,9 @@ If you use more than one coding agent, this repo is the single place to edit “
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **[`GLOBAL_AGENTS.md`](GLOBAL_AGENTS.md)**                                 | Your **global** context: who you are, session habits, doc and web tooling. This is the file you edit most often.                     |
 | **[`AGENTS.md`](AGENTS.md)**                                               | **Repo meta**: how to deploy, how hooks work, venv for scripts. Orient here when changing the machinery, not the global prompt text. |
-| **[`hooks/`](hooks/)**                                                     | **Runtime hooks**: installed with `install` by default (`--no-hooks` to skip).                                                       |
 | **[`skills/`](skills/)**                                                   | **Agent skills**: reusable workflows in `SKILL.md` form; copied to Claude/Cursor on `install` by default; Gemini reads `~/.agents/skills/` (`--no-skills` to skip copies). |
 | **[`cmd/`](cmd/)**                                                         | **Go binaries** that back specific skills (e.g. `pr-review`). Each subdirectory is a standalone Go module.                           |
-| **[`scripts/install-global-agents.py`](scripts/install-global-agents.py)** | Installs context, hooks, and skills by default; `--no-hooks` / `--no-skills` to skip.                                                |
+| **[`scripts/install-global-agents.py`](scripts/install-global-agents.py)** | Installs context, hooks (via `rtk init`), and skills by default; `--no-hooks` / `--no-skills` to skip.                               |
 | **[`docs/global-agents-smoke.md`](docs/global-agents-smoke.md)**           | Manual smoke prompts to check that deployed context behaves the way you expect.                                                      |
 | **[`.token-budget`](.token-budget)**                                       | A simple count of how many tokens each md file adds to your agents' global contexts                                                  |
 
@@ -30,7 +29,7 @@ From this directory:
 ./scripts/install-global-agents.py install
 ```
 
-That detects which agents are present, **symlinks** (or copies with `--copy`) `GLOBAL_AGENTS.md`, **deploys hooks** (unless `--no-hooks`), and **copies skills** to Claude/Cursor (unless `--no-skills`). Gemini/Antigravity load skills from **`~/.agents/skills/`** (no copy). **Antigravity** uses the same `~/.gemini/` files as Gemini CLI for context and hooks—one write updates both.
+That detects which agents are present, **symlinks** (or copies with `--copy`) `GLOBAL_AGENTS.md`, **initializes hooks** via `rtk init` (unless `--no-hooks`), and **copies skills** to Claude/Cursor (unless `--no-skills`). Gemini/Antigravity load skills from **`~/.agents/skills/`** (no copy). **Antigravity** uses the same `~/.gemini/` files as Gemini CLI for context and hooks—one write updates both.
 
 **First time?** After install, open a **new** chat in each product and skim [the smoke doc](docs/global-agents-smoke.md) if you want a quick behavioral check.
 
@@ -38,9 +37,8 @@ That detects which agents are present, **symlinks** (or copies with `--copy`) `G
 
 Some instructions are better enforced **at execution time** than repeated in the model prompt—for example prepending your **`rtk`** CLI to compress command output. A normal **`install`** does this by default.
 
-1. Copies hook scripts to **`~/.agents-hooks/`**.
-2. Merges small JSON fragments into each agent’s hook configuration (without wiping your existing hooks—see [`AGENTS.md`](AGENTS.md) for details).
-3. **Strips** marked sections from the deployed copy of `GLOBAL_AGENTS.md` so the model is not told to do something the hook already does.
+1. **Initializes native hooks** using the official `rtk init` commands for each agent.
+2. **Strips** marked sections from the deployed copy of `GLOBAL_AGENTS.md` so the model is not told to do something the hook already does.
 
 Use **`install --no-hooks`** to deploy the full `GLOBAL_AGENTS.md` (including `<!-- hookable: … -->` sections) and skip hook merges.
 

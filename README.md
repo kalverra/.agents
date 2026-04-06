@@ -1,76 +1,81 @@
-# `.agents`
+# `~/.agents`
 
-A small home for **portable AI-agent configuration**: machine-wide rules you can version in git, sync to Claude Code, Gemini CLI, Google Antigravity, Cursor, and anything else you wire up later.
+A global home for all of your AI agents! Define global rules once, and sync them to Claude Code, Gemini CLI, Antigravity, Cursor, and any other agents you use.
 
-If you use more than one coding agent, this repo is the single place to edit “how they should behave by default,” then push those defaults onto disk with one command.
+The skills and rules here are highly optimized for minimal token usage, taking up as little context space as possible while delivering high performance.
 
-## What lives here
+## Quick Start
 
-| Piece                                                                      | Role                                                                                                                                 |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **[`GLOBAL_AGENTS.md`](GLOBAL_AGENTS.md)**                                 | Your **global** context: who you are, session habits, doc and web tooling. This is the file you edit most often.                     |
-| **[`AGENTS.md`](AGENTS.md)**                                               | **Repo meta**: how to deploy, how hooks work, venv for scripts. Orient here when changing the machinery, not the global prompt text. |
-| **[`skills/`](skills/)**                                                   | **Agent skills**: reusable workflows in `SKILL.md` form; copied to Claude/Cursor on `install` by default; Gemini reads `~/.agents/skills/` (`--no-skills` to skip copies). |
-| **[`cmd/`](cmd/)**                                                         | **Go binaries** that back specific skills (e.g. `pr-review`). Each subdirectory is a standalone Go module.                           |
-| **[`scripts/install-global-agents.py`](scripts/install-global-agents.py)** | Installs context, hooks (via `rtk init`), and skills by default; `--no-hooks` / `--no-skills` to skip.                               |
-| **[`docs/global-agents-smoke.md`](docs/global-agents-smoke.md)**           | Manual smoke prompts to check that deployed context behaves the way you expect.                                                      |
-| **[`.token-budget`](.token-budget)**                                       | A simple count of how many tokens each md file adds to your agents' global contexts                                                  |
+Clone this repo into your home directory, then run the install script to detect what agents you use and install the global rules, hooks, and skills to them. **WARNING**: This will overwrite any existing `CLAUDE.md`, `GEMINI.md`, `.cursor/global-rules.mdc`, etc. files.
 
-**Global vs project:** Everything in `GLOBAL_AGENTS.md` is meant to apply everywhere. Repo- or project-specific rules stay in that project’s `AGENTS.md` or `.cursor/rules` so you do not bloat global context.
+```sh
+# Use [`just`](https://github.com/casey/just) (a `make` alternative) to install.
+just install
 
-## Quick start
+# Run in dry-run mode to see what would be installed
+just install --dry-run
 
-You need **Python 3.9+** for the installer (stdlib + a small repo-local helper in `scripts/`; no extra `pip` packages).
-
-From this directory:
-
-```bash
-./scripts/install-global-agents.py discover
-./scripts/install-global-agents.py install
+# Or use the raw python script
+python scripts/install-global-agents.py install
 ```
 
-That detects which agents are present, **symlinks** (or copies with `--copy`) `GLOBAL_AGENTS.md`, **initializes hooks** via `rtk init` (unless `--no-hooks`), and **copies skills** to Claude/Cursor (unless `--no-skills`). Gemini/Antigravity load skills from **`~/.agents/skills/`** (no copy). **Antigravity** uses the same `~/.gemini/` files as Gemini CLI for context and hooks—one write updates both.
+### Install Dependencies
 
-**First time?** After install, open a **new** chat in each product and skim [the smoke doc](docs/global-agents-smoke.md) if you want a quick behavioral check.
+You'll need to setup these tools for all the skills and instructions to work properly, mostly to save on token costs.
 
-## Hooks
+- [rtk](https://github.com/rtk-ai/rtk): Don't pay for extraneous shell command tokens.
+- [ctx7](https://context7.com/): Efficient and intelligent docs lookup for ai agents.
+- [scrapling](https://github.com/scrapling/scrapling): Efficient web scraping for ai agents, don't waste tokens on <html> tags.
 
-Some instructions are better enforced **at execution time** than repeated in the model prompt—for example prepending your **`rtk`** CLI to compress command output. A normal **`install`** does this by default.
+## Global Rules and Skills
 
-1. **Initializes native hooks** using the official `rtk init` commands for each agent.
-2. **Strips** marked sections from the deployed copy of `GLOBAL_AGENTS.md` so the model is not told to do something the hook already does.
+### [GLOBAL_AGENTS.md](GLOBAL_AGENTS.md)
 
-Use **`install --no-hooks`** to deploy the full `GLOBAL_AGENTS.md` (including `<!-- hookable: … -->` sections) and skip hook merges.
+Your global context that is loaded into every agent. It replaces `CLAUDE.md`, `GEMINI.md`, `.cursor/global-rules.mdc`, etc.
 
-Details and file layout: **[`AGENTS.md` → Hooks](AGENTS.md#hooks)**.
+### USER_AGENTS.md
 
-## Agent skills
-
-Skills are directories under [`skills/`](skills/) with a **`SKILL.md`** file (frontmatter + instructions). **`install`** copies them into **Claude** and **Cursor** user skills dirs by default; **Gemini/Antigravity** discover **`~/.agents/skills/`** instead (see Gemini CLI docs). Skip copies with **`install --no-skills`**. Combine with **`--targets`** as needed. Authoring details: **[`AGENTS.md` → Skills](AGENTS.md#skills)**.
-
-Some skills rely on a Go program under [`cmd/`](cmd/). For example, `pr-review` fetches GitHub PR context via GraphQL—build `cmd/pr-review/pr-review` once, then run it by full path (see [`skills/pr-review/SKILL.md`](skills/pr-review/SKILL.md)); no need to put it on `PATH`.
-
-## Optional: token counting
-
-[`scripts/count-tokens.py`](scripts/count-tokens.py) estimates token counts for files or strings (uses `tiktoken`—not required for the installer).
-
-```bash
-python3 -m venv scripts/.venv
-./scripts/.venv/bin/pip install -r scripts/requirements.txt
-./scripts/.venv/bin/python scripts/count-tokens.py --help
+An optional, hidden, user-specific context that is loaded into `GLOBAL_AGENTS.md` at install time. Example:
+```md
+Name: Adam
+Username: kalverra
+<stack>
+Go
+Python
+</stack>
+<goals>
+Write highly testable code.
+Master AI engineering.
+</goals>
 ```
 
-## Tips
+### [`find-docs`](skills/find-docs/SKILL.md)
 
-- Run **`discover`** whenever you install a new agent or change paths; it only prints where things would go.
-- Use **`--dry-run`** on **`install`** to preview merges and writes without changing files.
-- Use **`--targets claude,gemini,antigravity,cursor`** if detection misses a tool but you still want files written (`antigravity` deploys to the same paths as `gemini`).
-- Use **`--no-skills`** if you only want global context + hooks without copying [`skills/`](skills/) into Claude/Cursor (Gemini still uses `~/.agents/skills/` if present).
+Lookup current package/library docs using `ctx7`.
 
-For exact flags and contributor notes, keep **[`AGENTS.md`](AGENTS.md)** as the reference.
+### [`pr-review`](skills/pr-review/SKILL.md)
+
+Pull PR review comments from GitHub for your current repo and respond to them.
+
+### [`rewrite-agent-instructions`](skills/rewrite-agent-instructions/SKILL.md)
+
+Rewrite your `AGENTS.md` and other LLM focused files for token efficiency. Uses `xml` tags [for better LLM understanding](https://limitededitionjonathan.substack.com/p/the-definitive-guide-to-prompt-structure).
 
 ## Contributing
 
-```sh
-pre-commit install
+I've only thoroughly tested things on a few tools I personally use. If you notice issues with any, please make an issue or PR!
+
+### Evaluation
+
+To ensure models actually follow the rules defined in `GLOBAL_AGENTS.md` and follow skill definitions, this repo includes an automated evaluation harness leveraging a subject model (e.g., `llama3.1:8b`) and a judge model (Prometheus). I run these on my local machine using Ollama for the sake of cost, but you can route them to frontier models if you wish.
+
+```bash
+# Run tests 1 time and output to terminal
+just eval
+
+# Run tests 3 times and write a markdown report (scripts/eval/eval_results.md)
+just eval-multi
+
+# Run specific tests (e.g., tests matching the 'tools' tag)
+just eval-multi 3 --filter tools
 ```

@@ -1,0 +1,34 @@
+{
+  "permissions-stop-on-failure": {
+    "avg_score": 1.0,
+    "tokens": 291
+  },
+  "personality-concise-casual": {
+    "avg_score": 3.3333333333333335,
+    "tokens": 291
+  },
+  "rtk-missing-warn-once": {
+    "avg_score": 2.3333333333333335,
+    "tokens": 291
+  },
+  "rtk-prefix-shell-command": {
+    "avg_score": 4.0,
+    "tokens": 291
+  },
+  "session-goal-ask": {
+    "avg_score": 3.0,
+    "tokens": 291
+  },
+  "session-goal-redirect-drift": {
+    "avg_score": 4.0,
+    "tokens": 291
+  },
+  "tools-find-docs": {
+    "avg_score": 3.3333333333333335,
+    "tokens": 429
+  },
+  "tools-scrapling-web": {
+    "avg_score": 3.3333333333333335,
+    "tokens": 291
+  }
+}

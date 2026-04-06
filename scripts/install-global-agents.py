@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -188,6 +189,26 @@ def detect_cursor(verbose: bool) -> bool:
 # Context deployment
 # ---------------------------------------------------------------------------
 
+def merge_user_agents(body: str, user_src: Path) -> str:
+    """If user_src exists, merge its content into the <user>...</user> block if it exists,
+    else append to end.
+    """
+    if not user_src.is_file():
+        return body
+
+    user_content = user_src.read_text(encoding="utf-8").strip()
+    if not user_content:
+        return body
+
+    # Replace the <user> tag's internal content if it exists
+    pattern = re.compile(r"(<user>).*?(</user>)", re.DOTALL)
+    if pattern.search(body):
+        return pattern.sub(rf"\1\n{user_content}\n\2", body)
+
+    # Otherwise just append it
+    return body.rstrip() + "\n\n" + user_content + "\n"
+
+
 def do_link_or_copy(
     src: Path,
     dest: Path,
@@ -228,11 +249,16 @@ def deploy_global_agents_markdown(
         )
         return
     raw = src.read_text(encoding="utf-8")
+
+    user_src = src.parent / "USER_AGENTS.md"
+    body = merge_user_agents(raw, user_src)
+    has_user_content = body != raw
+
     if with_hooks:
-        body = strip_hookable_sections(raw)
+        body = strip_hookable_sections(body)
     else:
-        body = strip_hookable_delimiter_lines(raw)
-        if body == raw:
+        body = strip_hookable_delimiter_lines(body)
+        if body == raw and not has_user_content:
             do_link_or_copy(src, dest, use_copy=use_copy, dry_run=False)
             return
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -252,7 +278,11 @@ def write_cursor_mdc(
         print(f"[dry-run] write {dest} (frontmatter + GLOBAL_AGENTS.md, strip_hooks={strip_hooks})")
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
-    body = global_path.read_text(encoding="utf-8")
+    raw = global_path.read_text(encoding="utf-8")
+
+    user_src = global_path.parent / "USER_AGENTS.md"
+    body = merge_user_agents(raw, user_src)
+
     if strip_hooks:
         body = strip_hookable_sections(body)
     else:
@@ -401,7 +431,7 @@ def cmd_discover(verbose: bool) -> int:
     n_skills = repo_skill_count()
     skills_repo = f"{n_skills} in repo skills/" if n_skills else "none in repo/skills/"
     gemini_skills_note = (
-        f"{skills_repo}; Gemini/Antigravity discover ~/.agents/skills (and ~/.gemini/skills); "
+        f"{skills_repo}; Gemini CLI discovers ~/.agents/skills (and ~/.gemini/skills); "
         "install does not copy there"
     )
     any_yes = False
@@ -431,7 +461,8 @@ def cmd_discover(verbose: bool) -> int:
         print(f"  antigravity   yes   context -> {gemini_config_dir() / 'GEMINI.md'} (shared with gemini-cli)")
         print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool, shared)")
         print(
-            f"                      skills  -> {Path.home() / '.agents' / 'skills'}/ (shared; {gemini_skills_note})"
+            f"                      skills  -> {Path.home() / '.gemini' / 'antigravity' / 'skills'}/ "
+            f"({skills_repo}; copy on install)"
         )
         any_yes = True
     else:
@@ -506,6 +537,7 @@ def cmd_install(
     did_claude = False
     did_gemini = False
     did_cursor = False
+    did_antigravity = False
 
     if target_wanted("claude", targets):
         if detect_claude(verbose) or forcing_targets(targets):
@@ -563,6 +595,9 @@ def cmd_install(
             if with_hooks and (gemini_detected or is_gemini_forced):
                 install_hooks_gemini(hooks_dir, dry_run=dry_run)
 
+            if antigravity_detected or is_antigravity_forced:
+                did_antigravity = True
+
             installed = True
             did_gemini = True
 
@@ -587,6 +622,8 @@ def cmd_install(
                 copy_skills_to_user_dir(Path.home() / ".claude" / "skills", dry_run=dry_run)
             if did_cursor:
                 copy_skills_to_user_dir(Path.home() / ".cursor" / "skills", dry_run=dry_run)
+            if did_antigravity:
+                copy_skills_to_user_dir(Path.home() / ".gemini" / "antigravity" / "skills", dry_run=dry_run)
 
     if not installed:
         sp = script_path()
@@ -641,8 +678,8 @@ def main() -> int:
     p_ins.add_argument(
         "--no-skills",
         action="store_true",
-        help="Do not copy repo skills/ to Claude/Cursor user skills dirs "
-        "(~/.claude/skills/, ~/.cursor/skills/). Gemini/Antigravity use ~/.agents/skills/ per "
+        help="Do not copy repo skills/ to Claude/Cursor/Antigravity user skills dirs "
+        "(~/.claude/skills/, ~/.cursor/skills/, ~/.gemini/antigravity/skills/). Gemini CLI uses ~/.agents/skills/ per "
         "Gemini CLI docs — no copy from this installer.",
     )
 

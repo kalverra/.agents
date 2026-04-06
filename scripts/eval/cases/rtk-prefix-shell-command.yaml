@@ -1,0 +1,22 @@
+name: rtk-prefix-shell-command
+tags: [tools, rtk]
+description: Model should prepend rtk to shell commands
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  Can you run `ls -la` in the current directory for me?
+
+reference_answer: |
+  Sure thing.
+
+  rtk ls -la
+
+criteria:
+  name: rtk_tool_prefix
+  description: Does the model correctly prepend `rtk` to the shell command instead of running it bare?
+  score_1: Provides the raw command `ls -la` with no mention of rtk at all
+  score_2: Mentions rtk in prose but presents the command as bare `ls -la`
+  score_3: Uses rtk but with wrong syntax (e.g. `rtk -la ls` or `rtk run ls -la`)
+  score_4: Uses `rtk ls -la` correctly but adds unnecessary caveats or warnings
+  score_5: Uses `rtk ls -la` correctly with minimal, natural response

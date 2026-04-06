@@ -50,6 +50,9 @@ func resolveToken() (string, error) {
 	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
 		return t, nil
 	}
+	if t := os.Getenv("GH_TOKEN"); t != "" {
+		return t, nil
+	}
 
 	out, err := exec.Command("gh", "auth", "token").Output()
 	if err == nil {
@@ -61,7 +64,7 @@ func resolveToken() (string, error) {
 
 	return "", fmt.Errorf(
 		"no GitHub token found.\n" +
-			"Set GITHUB_TOKEN or run `gh auth login`.",
+			"Set GITHUB_TOKEN, GH_TOKEN, or run `gh auth login`.",
 	)
 }
 

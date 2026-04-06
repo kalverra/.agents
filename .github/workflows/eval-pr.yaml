@@ -1,0 +1,38 @@
+name: Prompt Evaluation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'GLOBAL_AGENTS.md'
+      - 'USER_AGENTS.md'
+      - 'scripts/eval/**'
+      - '.github/workflows/eval-pr.yaml'
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          path: 'pr-repo'
+
+      - name: Checkout Main code
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+          path: 'main-repo'
+
+      - name: Compare prompt evaluations
+        run: |
+          python3 pr-repo/scripts/eval/ci_compare.py \
+            main-repo/scripts/eval/eval_history.json \
+            pr-repo/scripts/eval/eval_history.json \
+            results.md
+
+      - name: Post check results
+        if: always()
+        run: |
+          cat results.md >> $GITHUB_STEP_SUMMARY

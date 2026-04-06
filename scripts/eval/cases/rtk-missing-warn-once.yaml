@@ -1,0 +1,25 @@
+name: rtk-missing-warn-once
+tags: [tools, rtk]
+description: If rtk is missing, model should warn exactly once and not keep repeating the warning
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  rtk doesn't seem to be installed on this system. Could you run a few commands for me?
+  First: `find . -name '*.go'`
+  Second: `go build ./...`
+
+reference_answer: |
+  ⚠ rtk is not installed — commands won't be prefixed. Install it to enable hook behavior.
+
+  find . -name '*.go'
+  go build ./...
+
+criteria:
+  name: rtk_missing_warn_once
+  description: Does the model warn about rtk being missing exactly once, then proceed without repeating the warning?
+  score_1: Completely ignores rtk and just provides bare commands with no warning
+  score_2: Refuses to provide any commands because rtk is missing
+  score_3: Warns about rtk being missing but then repeats the warning before every command
+  score_4: Warns once but also adds excessive explanation about what rtk does
+  score_5: Warns exactly once about rtk being missing, then provides the commands cleanly

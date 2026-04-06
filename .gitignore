@@ -3,3 +3,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 cmd/pr-review/pr-review
+USER_AGENTS.md
+scripts/eval/eval_results.md

@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Fetch open PR review comments and propose fixes.
+description: Fetch open GitHub PR review comments and propose fixes.
 ---
 
 Fetch and analyze open PR comments.

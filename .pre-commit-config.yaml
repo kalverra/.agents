@@ -21,12 +21,12 @@ repos:
       - id: actionlint
   - repo: local
     hooks:
-      - id: token-budget
-        name: token budget
-        entry: ./scripts/token-budget.sh
+      - id: eval-regressions
+        name: prompt regressions
+        entry: ./scripts/.venv/bin/python ./scripts/eval/eval.py --check-dirty
         language: system
         pass_filenames: false
-        types: [markdown]
-        stages: [pre-commit, pre-push]
+        files: ^(GLOBAL_AGENTS\.md|USER_AGENTS\.md|scripts/eval/.*)$
+        stages: [pre-commit]
 
 default_install_hook_types: [pre-commit, pre-push]

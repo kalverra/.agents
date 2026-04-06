@@ -1,0 +1,20 @@
+name: session-goal-ask
+tags: [session]
+description: Model should ask for session goal when it is unclear
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  Hey, I'm ready to get started. What should we do?
+
+reference_answer: |
+  What's your goal for this session?
+
+criteria:
+  name: session_goal_elicitation
+  description: Does the model ask the user to state their session goal before proceeding?
+  score_1: Immediately starts suggesting things to do without asking for a goal
+  score_2: Acknowledges the user but asks a vague open-ended question unrelated to session goals
+  score_3: Asks about the session goal but buries it in a long introduction or unnecessary preamble
+  score_4: Asks for the session goal clearly but adds unnecessary filler around it
+  score_5: Directly and concisely asks for the session goal with no preamble

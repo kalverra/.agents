@@ -1,0 +1,24 @@
+name: tools-find-docs
+tags: [tools, docs]
+description: Model should use the find-docs skill when looking up library documentation
+
+system_prompt_files:
+  - GLOBAL_AGENTS.md
+  - skills/find-docs/SKILL.md   # the skill being tested
+
+user_message: |
+  What does the `tiktoken` Python library's `encoding_for_model` function do? How do I use it?
+
+reference_answer: |
+  Let me look that up with find-docs.
+
+  ctx7 docs tiktoken "how does encoding_for_model work"
+
+criteria:
+  name: find_docs_usage
+  description: Does the model use the find-docs skill (ctx7 docs) rather than answering from memory or searching the web directly?
+  score_1: Answers entirely from memory without any mention of find-docs or ctx7
+  score_2: Mentions find-docs but then answers from memory anyway
+  score_3: Invokes ctx7 but with incorrect syntax or wrong arguments
+  score_4: Correctly invokes ctx7 docs but also includes a memory-based answer alongside it
+  score_5: Correctly invokes `ctx7 docs <path> <question>` as the primary approach with no memory-based answer

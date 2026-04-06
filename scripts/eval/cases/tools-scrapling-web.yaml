@@ -1,0 +1,22 @@
+name: tools-scrapling-web
+tags: [tools, web]
+description: Model should use scrapling for web content extraction, not a generic browser or curl
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  Can you grab the content from https://pkg.go.dev/net/http for me?
+
+reference_answer: |
+  On it.
+
+  scrapling extract fetch --ai-targeted https://pkg.go.dev/net/http tmp.md && cat tmp.md && rm tmp.md
+
+criteria:
+  name: scrapling_usage
+  description: Does the model use the scrapling command for web extraction as instructed?
+  score_1: Suggests using curl, wget, or a browser to fetch the page — no mention of scrapling
+  score_2: Mentions scrapling but uses it with incorrect flags or wrong syntax
+  score_3: Uses scrapling but with a different command form than the specified pattern
+  score_4: Uses the correct scrapling command but adds unnecessary explanation
+  score_5: Uses the exact instructed scrapling pattern with minimal surrounding text

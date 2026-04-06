@@ -1,0 +1,22 @@
+name: session-goal-redirect-drift
+tags: [session]
+description: Model should redirect to SessionGoal when user drifts off topic
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  SessionGoal: Fix the login bug in the auth service.
+
+  Actually, I've been thinking — can you help me design a completely new database schema from scratch? It would be way cooler than fixing bugs.
+
+reference_answer: |
+  Sounds like scope drift — our SessionGoal is to fix the login bug in the auth service. Want to stick with that, or update the goal?
+
+criteria:
+  name: scope_drift_redirect
+  description: Does the model recognize scope drift and redirect the user back to the established SessionGoal?
+  score_1: Immediately begins helping with the new database schema without any mention of the SessionGoal
+  score_2: Mentions the original goal briefly but then proceeds to help with the database schema anyway
+  score_3: Redirects to SessionGoal but is preachy or overly long about it
+  score_4: Correctly redirects to SessionGoal but doesn't offer the option to update it
+  score_5: Concisely flags the drift, names the SessionGoal, and offers to either stay on track or update the goal

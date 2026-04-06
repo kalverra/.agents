@@ -1,0 +1,662 @@
+#!/usr/bin/env python3
+"""Prompt eval harness for .agents repo.
+
+Tests whether a subject model follows agent instructions by having a judge
+model (Prometheus) score responses 1–5 against a rubric.
+
+Usage:
+    python scripts/eval/eval.py [OPTIONS]
+
+Options:
+    --subject MODEL    ollama model to test (default: llama3.1:8b)
+    --judge MODEL      ollama judge model (default: prometheus model)
+    --cases DIR        path to test cases dir (default: scripts/eval/cases/)
+    --filter TAG       only run cases with this tag
+    --iterations INT   number of times to run each case (default: 1)
+    --output FILE      write JSON results to file (default: stdout summary)
+    --report FILE      write full markdown report to file (e.g. eval_results.md)
+    --verbose          show full subject response and judge feedback
+    --repo ROOT        repo root for resolving system_prompt_file paths
+                       (default: parent of this script's directory)
+"""
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+try:
+    import ollama
+except ImportError:
+    print("ERROR: ollama package not installed. Run: pip install ollama", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    import yaml
+except ImportError:
+    print("ERROR: pyyaml not installed. Run: pip install pyyaml", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich import print as rprint
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+
+try:
+    import tiktoken
+    HAS_TIKTOKEN = True
+except ImportError:
+    HAS_TIKTOKEN = False
+
+
+PROMETHEUS_MODEL = "hf.co/divish/M-Prometheus-7B-Q4_K_M-GGUF:latest"
+DEFAULT_SUBJECT = "llama3.1:8b"
+
+PROMETHEUS_PROMPT = """\
+###Task Description: An instruction (might include an Input inside it), a response to evaluate, a reference answer that gets a score of 5, and a score rubric representing an evaluation criteria are given.
+1. Write a detailed feedback that assesses the quality of the response strictly based on the given score rubric, not evaluating in general.
+2. After writing a feedback, write a score that is an integer between 1 and 5. You should refer to the score rubric.
+3. The output format should look as follows: "Feedback: (write a feedback for criteria) [RESULT] (an integer number between 1 and 5)"
+4. Please do not generate any other opening, closing, and explanations.
+
+###The instruction to evaluate:
+{instruction}
+
+###Response to evaluate:
+{response}
+
+###Reference Answer (Score 5):
+{reference_answer}
+
+###Score Rubrics:
+[{criteria_name}]
+Score 1: {score_1}
+Score 2: {score_2}
+Score 3: {score_3}
+Score 4: {score_4}
+Score 5: {score_5}
+
+###Feedback:\
+"""
+
+
+USER_AGENTS_PLACEHOLDER = "<!-- Instructions from USER_AGENTS.md are appended here during install -->"
+
+
+def resolve_placeholders(content: str, repo_root: Path) -> str:
+    """Substitute the USER_AGENTS.md install-time placeholder with real content."""
+    user_agents = repo_root / "USER_AGENTS.md"
+    if USER_AGENTS_PLACEHOLDER in content and user_agents.exists():
+        content = content.replace(USER_AGENTS_PLACEHOLDER, user_agents.read_text().strip())
+    return content
+
+
+def load_file(path: Path, repo_root: Path) -> str:
+    """Read a file and resolve any install-time placeholders."""
+    return resolve_placeholders(path.read_text(), repo_root)
+
+
+def load_system_prompt(case: dict, repo_root: Path) -> str:
+    """Resolve system prompt from inline text or one/many file references."""
+    if "system_prompt" in case:
+        return case["system_prompt"].strip()
+    if "system_prompt_files" in case:
+        parts = []
+        for rel in case["system_prompt_files"]:
+            p = repo_root / rel
+            if not p.exists():
+                raise FileNotFoundError(f"system_prompt_file not found: {p}")
+            parts.append(load_file(p, repo_root).strip())
+        return "\n\n---\n\n".join(parts)
+    if "system_prompt_file" in case:
+        p = repo_root / case["system_prompt_file"]
+        if not p.exists():
+            raise FileNotFoundError(f"system_prompt_file not found: {p}")
+        return load_file(p, repo_root).strip()
+    return ""
+
+
+def call_subject(model: str, system_prompt: str, user_message: str, max_retries: int = 3) -> str:
+    """Send system + user message to subject model, return response text."""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_message})
+
+    for attempt in range(max_retries):
+        try:
+            resp = ollama.chat(model=model, messages=messages)
+            return resp.message.content
+        except ollama.ResponseError as e:
+            if attempt < max_retries - 1:
+                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in 3s...", file=sys.stderr)
+                time.sleep(3)
+            else:
+                raise
+
+
+def call_judge(judge_model: str, case: dict, subject_response: str, max_retries: int = 3) -> tuple[str, Optional[int]]:
+    """Call Prometheus judge, return (feedback_text, score)."""
+    criteria = case["criteria"]
+    prompt = PROMETHEUS_PROMPT.format(
+        instruction=case["user_message"],
+        response=subject_response,
+        reference_answer=case["reference_answer"],
+        criteria_name=criteria["name"],
+        score_1=criteria["score_1"],
+        score_2=criteria["score_2"],
+        score_3=criteria["score_3"],
+        score_4=criteria["score_4"],
+        score_5=criteria["score_5"],
+    )
+
+    for attempt in range(max_retries):
+        try:
+            resp = ollama.chat(
+                model=judge_model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.message.content
+            score = parse_score(raw)
+            return raw, score
+        except ollama.ResponseError as e:
+            if attempt < max_retries - 1:
+                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in 3s...", file=sys.stderr)
+                time.sleep(3)
+            else:
+                raise
+
+
+def parse_score(text: str) -> Optional[int]:
+    """Extract integer score from Prometheus [RESULT] N output."""
+    match = re.search(r"\[RESULT\]\s*(\d)", text)
+    if match:
+        val = int(match.group(1))
+        if 1 <= val <= 5:
+            return val
+    return None
+
+
+def score_emoji(score: Optional[int]) -> str:
+    if score is None:
+        return "❓"
+    return ["", "🔴", "🟠", "🟡", "🟢", "✅"][score]
+
+
+def load_cases(cases_dir: Path, tag_filter: Optional[str]) -> list[dict]:
+    cases = []
+    for f in sorted(cases_dir.glob("*.yaml")):
+        c = yaml.safe_load(f.read_text())
+        c["_file"] = f.name
+        if tag_filter and tag_filter not in c.get("tags", []):
+            continue
+        cases.append(c)
+    if not cases:
+        raise ValueError(f"No cases found in {cases_dir}" + (f" with tag '{tag_filter}'" if tag_filter else ""))
+    return cases
+
+
+def get_git_info(repo_root: Path) -> dict:
+    """Get current git commit and dirty status."""
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).strip()
+
+        # Check for uncommitted changes in agent-related files
+        dirty = subprocess.call(
+            ["git", "diff", "--quiet", "--", "GLOBAL_AGENTS.md", "USER_AGENTS.md", "scripts/eval/"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL
+        ) != 0
+
+        return {"commit": commit, "dirty": dirty}
+    except Exception:
+        return {"commit": "unknown", "dirty": False}
+
+
+def run_eval(args: argparse.Namespace) -> list[dict]:
+    repo_root = Path(args.repo)
+    cases_dir = Path(args.cases)
+    console = Console() if HAS_RICH else None
+
+    cases = load_cases(cases_dir, args.filter)
+
+    if console:
+        console.print(f"\n[bold cyan]🧪 Prompt Eval Harness[/bold cyan]")
+        console.print(f"  Subject : [yellow]{args.subject}[/yellow]")
+        console.print(f"  Judge   : [yellow]{args.judge}[/yellow]")
+        console.print(f"  Cases   : [yellow]{len(cases)}[/yellow]")
+        console.print(f"  Iters   : [yellow]{args.iterations}[/yellow]\n")
+    else:
+        print(f"\nPrompt Eval Harness")
+        print(f"  Subject : {args.subject}")
+        print(f"  Judge   : {args.judge}")
+        print(f"  Cases   : {len(cases)}")
+        print(f"  Iters   : {args.iterations}\n")
+
+    results = []
+    active_cases = []
+
+    # PREPARE: Load prompts and handle file errors
+    for case in cases:
+        name = case.get("name", case["_file"])
+        desc = case.get("description", "")
+        try:
+            system_prompt = load_system_prompt(case, repo_root)
+            tokens = None
+            if HAS_TIKTOKEN:
+                tokens = len(tiktoken.get_encoding("cl100k_base").encode(system_prompt))
+            active_cases.append({
+                "case": case,
+                "name": name,
+                "desc": desc,
+                "system_prompt": system_prompt,
+                "tokens": tokens,
+                "iterations": []
+            })
+        except FileNotFoundError as e:
+            print(f"  ⚠ Skipped {name}: {e}", file=sys.stderr)
+            results.append({"case": name, "error": str(e), "tags": case.get("tags", [])})
+
+    # PHASE 1: Generate subject responses
+    if console and active_cases:
+        console.print("\n[bold cyan]▶ Phase 1: Generating Responses (Subject)[/bold cyan]")
+
+    for i, ac in enumerate(active_cases, 1):
+        name = ac["name"]
+        if console:
+            console.print(f"[{i}/{len(active_cases)}] [bold]{name}[/bold]")
+        else:
+            print(f"\n[{i}/{len(active_cases)}] {name} (Generating)")
+
+        for it in range(1, args.iterations + 1):
+            iter_prefix = f" [{it}/{args.iterations}]" if args.iterations > 1 else ""
+            if console:
+                console.print(f"  → calling subject{iter_prefix}...", end="")
+
+            subject_response = call_subject(args.subject, ac["system_prompt"], ac["case"]["user_message"])
+
+            if console:
+                console.print(" done")
+                if args.verbose:
+                    console.print(Panel(subject_response, title=f"Subject Response{iter_prefix}", border_style="dim"))
+            else:
+                if args.verbose:
+                    print(f"  SUBJECT{iter_prefix}:\n{subject_response}\n")
+
+            ac["iterations"].append({
+                "iteration": it,
+                "subject_response": subject_response
+            })
+
+    # PHASE 2: Evaluate responses
+    if console and active_cases:
+        console.print("\n[bold cyan]▶ Phase 2: Evaluating Responses (Judge)[/bold cyan]")
+
+    for i, ac in enumerate(active_cases, 1):
+        name = ac["name"]
+        if console:
+            console.print(f"[{i}/{len(active_cases)}] [bold]{name}[/bold]")
+        else:
+            print(f"\n[{i}/{len(active_cases)}] {name} (Evaluating)")
+
+        for it_data in ac["iterations"]:
+            it = it_data["iteration"]
+            iter_prefix = f" [{it}/{args.iterations}]" if args.iterations > 1 else ""
+
+            if console:
+                console.print(f"  → calling judge{iter_prefix}...", end="")
+
+            judge_raw, score = call_judge(args.judge, ac["case"], it_data["subject_response"])
+
+            if console:
+                console.print(f" done  {score_emoji(score)} score={score}")
+                if args.verbose:
+                    console.print(Panel(judge_raw, title=f"Judge Feedback{iter_prefix}", border_style="dim"))
+            else:
+                print(f"  score: {score}")
+                if args.verbose:
+                    print(f"  JUDGE{iter_prefix}:\n{judge_raw}\n")
+
+            it_data["judge_raw"] = judge_raw
+            it_data["score"] = score
+
+        # Aggregate results for this case
+        valid_scores = [it["score"] for it in ac["iterations"] if it["score"] is not None]
+        avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
+        min_score = min(valid_scores) if valid_scores else None
+        max_score = max(valid_scores) if valid_scores else None
+
+        results.append({
+            "case": ac["name"],
+            "tags": ac["case"].get("tags", []),
+            "description": ac["desc"],
+            "subject_model": args.subject,
+            "judge_model": args.judge,
+            "user_message": ac["case"]["user_message"],
+            "tokens": ac["tokens"],
+            "iterations": ac["iterations"],
+            "avg_score": avg_score,
+            "min_score": min_score,
+            "max_score": max_score,
+        })
+
+    return results
+
+
+def format_diff(current, previous, is_fmt: bool = True, invert_color: bool = False, label: str = "") -> str:
+    if current is None or previous is None:
+        return ""
+    diff = current - previous
+    if abs(diff) < 0.01:
+        return ""
+
+    sign = "+" if diff > 0 else ""
+    val_str = f"{sign}{diff:.2f}" if isinstance(diff, float) else f"{sign}{int(diff)}"
+
+    if not is_fmt:
+        res = f"({val_str})"
+        return f"{res} {label}".strip() if label else res
+
+    color = "green" if diff > 0 else "red"
+    if invert_color:
+        color = "red" if diff > 0 else "green"
+
+    res = f"[[{color}]{val_str}[/{color}]]"
+    return f"{res} [dim]{label}[/dim]" if label else res
+
+
+def print_summary(results: list[dict], history: dict, console, iterations: int):
+    avg_scores = [r["avg_score"] for r in results if r.get("avg_score") is not None]
+    total_avg = sum(avg_scores) / len(avg_scores) if avg_scores else 0
+    passed = sum(1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0)
+
+    if HAS_RICH and console:
+        table = Table(title="\nResults Summary", show_lines=True)
+        table.add_column("Case", style="cyan", no_wrap=True)
+        table.add_column("Tags", style="dim")
+        table.add_column("Tokens", justify="center")
+        if iterations > 1:
+            table.add_column("Avg", justify="center")
+            table.add_column("Min", justify="center")
+            table.add_column("Max", justify="center")
+        else:
+            table.add_column("Score", justify="center")
+        table.add_column("Grade", justify="center")
+
+        for r in results:
+            if "error" in r:
+                cols = [r["case"], "", "ERR"]
+                if iterations > 1: cols += ["ERR", "ERR", "ERR"]
+                else: cols += ["ERR"]
+                cols += ["⚠"]
+                table.add_row(*cols)
+                continue
+
+            score = r.get("avg_score")
+            grade = score_emoji(round(score) if score is not None else None)
+            color = "red" if (score or 0) <= 2 else "yellow" if (score or 0) < 4.0 else "green"
+
+            prev = history.get(r["case"], {})
+            score_diff = format_diff(score, prev.get("avg_score"))
+            token_diff = format_diff(r.get("tokens"), prev.get("tokens"), invert_color=True)
+
+            tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
+            row = [r["case"], ", ".join(r.get("tags", [])), tokens_str]
+
+            score_val = f"{score:.2f}" if iterations > 1 else str(int(score))
+            score_str = f"[{color}]{score_val}[/{color}] {score_diff}".strip()
+
+            if iterations > 1:
+                row += [score_str, str(r['min_score']), str(r['max_score'])]
+            else:
+                row += [score_str]
+
+            row += [grade]
+            table.add_row(*row)
+
+        console.print(table)
+        console.print(f"\n[bold]Overall Average:[/bold] {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}\n")
+    else:
+        print("\n--- Results ---")
+        for r in results:
+            if "error" in r:
+                print(f"  {r['case']}: ERR")
+            elif iterations > 1:
+                print(f"  {r['case']}: Avg={r['avg_score']:.2f} Min={r['min_score']} Max={r['max_score']} Tokens={r.get('tokens')}")
+            else:
+                print(f"  {r['case']}: {r['avg_score']:.0f}/5 Tokens={r.get('tokens')}")
+        print(f"\nOverall Average: {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}")
+
+
+SCORE_BADGE = {
+    1: "🔴 1/5",
+    2: "🟠 2/5",
+    3: "🟡 3/5",
+    4: "🟢 4/5",
+    5: "✅ 5/5",
+}
+
+
+def write_markdown_report(results: list[dict], history: dict, git_info: dict, path: Path, args: argparse.Namespace) -> None:
+    from datetime import datetime, timezone
+
+    avg_scores = [r["avg_score"] for r in results if r.get("avg_score") is not None]
+    total_avg = sum(avg_scores) / len(avg_scores) if avg_scores else 0
+    passed = sum(1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    git_status = f"`{git_info['commit']}`"
+    if git_info["dirty"]:
+        git_status += " (with local changes)"
+
+    lines = [
+        "# Eval Results\n",
+        f"**Run:** {now}  ",
+        f"**Commit:** {git_status}  ",
+        f"**Subject:** `{args.subject}`  ",
+        f"**Judge:** `{args.judge}`  ",
+        f"**Cases:** {len(results)}  ",
+        f"**Iterations:** {args.iterations}  ",
+        f"**Average score:** {total_avg:.2f}/5  |  **Passed (Avg >= 4.0):** {passed}/{len(avg_scores)}\n",
+        "---\n",
+        "## Summary\n",
+    ]
+
+    if args.iterations > 1:
+        lines.append("| # | Case | Tags | Tokens | Avg | Min | Max |")
+        lines.append("|---|------|------|--------|-----|-----|-----|")
+    else:
+        lines.append("| # | Case | Tags | Tokens | Score |")
+        lines.append("|---|------|------|--------|-------|")
+
+    for i, r in enumerate(results, 1):
+        tags = ", ".join(f"`{t}`" for t in r.get("tags", []))
+        if "error" in r:
+            if args.iterations > 1:
+                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ERR |")
+            else:
+                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ⚠ error |")
+            continue
+
+        prev = history.get(r["case"], {})
+        score = r.get("avg_score")
+        score_diff = format_diff(score, prev.get("avg_score"), is_fmt=False)
+        token_diff = format_diff(r.get("tokens"), prev.get("tokens"), is_fmt=False)
+
+        tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
+
+        if args.iterations > 1:
+            badge = SCORE_BADGE.get(round(score), "❓")
+            score_str = f"{badge} {score:.2f} {score_diff}".strip()
+            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {tokens_str} | {score_str} | {r['min_score']} | {r['max_score']} |")
+        else:
+            badge = SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
+            score_str = f"{badge} {score_diff}".strip()
+            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {tokens_str} | {score_str} |")
+
+    lines.append("\n---\n")
+    lines.append("## Case Details\n")
+
+    for r in results:
+        tags = " ".join(f"`{t}`" for t in r.get("tags", []))
+        prev = history.get(r.get("case", ""), {})
+        token_diff = format_diff(r.get("tokens"), prev.get("tokens"), is_fmt=False)
+        tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
+
+        lines += [
+            f"### {r['case']}",
+            f"",
+            f"{tags}  ",
+            f"**Tokens:** {tokens_str}  ",
+            f"**Description:** {r.get('description', '')}\n",
+        ]
+
+        score = r.get("avg_score")
+        score_diff = format_diff(score, prev.get("avg_score"), is_fmt=False)
+
+        if args.iterations > 1:
+            badge = SCORE_BADGE.get(round(score or 0), "❓")
+            lines.append(f"**Average Score:** {badge} {score:.2f} {score_diff} (Min: {r.get('min_score')}, Max: {r.get('max_score')})  ")
+        else:
+            badge = SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
+            lines.append(f"**Score:** {badge} {score_diff}  ")
+
+        lines += [
+            f"#### User Message\n",
+            f"```",
+            r.get("user_message", "").strip(),
+            f"```\n",
+        ]
+
+        if "error" in r:
+            lines.append(f"> ⚠ **Error:** {r['error']}\n")
+            lines.append("---\n")
+            continue
+
+        for it in r.get("iterations", []):
+            iter_header = f"Iteration {it['iteration']}" if args.iterations > 1 else "Response"
+            lines += [
+                f"#### {iter_header} (`{r.get('subject_model', '')}`)",
+                f"**Score:** {SCORE_BADGE.get(it['score'], '❓')}",
+                f"",
+                it.get("subject_response", "").strip(),
+                f"\n**Judge Feedback**",
+                f"",
+                it.get("judge_raw", "").strip(),
+                f"\n",
+            ]
+        lines.append("---\n")
+
+    path.write_text("\n".join(lines))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Eval harness: test whether models follow .agents instructions"
+    )
+    parser.add_argument("--subject", default=DEFAULT_SUBJECT, help="Subject model (ollama)")
+    parser.add_argument("--judge", default=PROMETHEUS_MODEL, help="Judge model (ollama)")
+    parser.add_argument("--cases", default=str(Path(__file__).parent / "cases"), help="Test cases directory")
+    parser.add_argument("--filter", help="Only run cases with this tag")
+    parser.add_argument("--iterations", type=int, default=1, help="Number of times to run each case")
+    parser.add_argument("--output", help="Write JSON results to this file")
+    parser.add_argument("--report", help="Write full markdown report to this file (e.g. eval_results.md)")
+    parser.add_argument("--verbose", action="store_true", help="Show full responses")
+    parser.add_argument("--check-dirty", action="store_true", help="Instantly verify history validity (used in pre-commit hooks).")
+    parser.add_argument(
+        "--repo",
+        default=str(Path(__file__).parent.parent.parent),
+        help="Repo root (for system_prompt_file resolution)",
+    )
+    args = parser.parse_args()
+
+    repo_root = Path(args.repo)
+    history_file = Path(__file__).parent / "eval_history.json"
+
+    if args.check_dirty:
+        console = Console() if HAS_RICH else None
+        def pr_err(msg):
+            if console: console.print(f"[bold red]❌ {msg}[/bold red]")
+            else: print(f"ERROR: {msg}")
+
+        if not history_file.exists():
+            pr_err("No eval_history.json found. You must run `just eval` before committing.")
+            sys.exit(1)
+
+        try:
+            history = json.loads(history_file.read_text())
+        except Exception as e:
+            pr_err(f"Corrupt eval_history.json: {e}")
+            sys.exit(1)
+
+        global_agents_path = repo_root / "GLOBAL_AGENTS.md"
+        if global_agents_path.exists():
+            global_mtime = global_agents_path.stat().st_mtime
+            hist_mtime = history_file.stat().st_mtime
+            if global_mtime > hist_mtime:
+                pr_err("GLOBAL_AGENTS.md has been modified since the last eval run. Please run `just eval-multi` to update scores.")
+                sys.exit(1)
+
+        scores = [v.get("avg_score") for v in history.values() if v.get("avg_score") is not None]
+        total = sum(scores) / len(scores) if scores else 0
+        if total < 4.0:
+            pr_err(f"Overall average score is {total:.2f}. Must be >= 4.0 to commit.")
+            sys.exit(1)
+
+        sys.exit(0)
+
+    git_info = get_git_info(repo_root)
+
+    history = {}
+    if history_file.exists():
+        try:
+            history = json.loads(history_file.read_text())
+        except Exception:
+            pass
+
+    console = Console() if HAS_RICH else None
+    results = run_eval(args)
+    print_summary(results, history, console, args.iterations)
+
+    new_history_content = {
+        r["case"]: {"avg_score": r.get("avg_score"), "tokens": r.get("tokens")}
+        for r in results if "error" not in r
+    }
+
+    history_file.write_text(json.dumps(new_history_content, indent=2))
+
+    if args.output:
+        out = Path(args.output)
+        out.write_text(json.dumps(results, indent=2))
+        msg = f"JSON written to {out}"
+        if console:
+            console.print(f"\n[dim]{msg}[/dim]")
+        else:
+            print(f"\n{msg}")
+
+    if args.report:
+        rep = Path(args.report)
+        write_markdown_report(results, history, git_info, rep, args)
+        msg = f"Report written to {rep}"
+        if console:
+            console.print(f"[dim]{msg}[/dim]")
+        else:
+            print(msg)
+
+
+if __name__ == "__main__":
+    main()

@@ -5,7 +5,7 @@ description: Model should ask for session goal when it is unclear
 system_prompt_file: GLOBAL_AGENTS.md
 
 user_message: |
-  Hey, I'm ready to get started. What should we do?
+  What is the language Rust?
 
 reference_answer: |
   What's your goal for this session?

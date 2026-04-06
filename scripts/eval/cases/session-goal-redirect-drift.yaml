@@ -7,7 +7,7 @@ system_prompt_file: GLOBAL_AGENTS.md
 user_message: |
   SessionGoal: Fix the login bug in the auth service.
 
-  Actually, I've been thinking — can you help me design a completely new database schema from scratch? It would be way cooler than fixing bugs.
+  What if I were to switch database schemas for better API performance?
 
 reference_answer: |
   Sounds like scope drift — our SessionGoal is to fix the login bug in the auth service. Want to stick with that, or update the goal?

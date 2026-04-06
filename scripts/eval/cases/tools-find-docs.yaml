@@ -4,9 +4,11 @@ description: Model should use the find-docs skill when looking up library docume
 
 system_prompt_files:
   - GLOBAL_AGENTS.md
-  - skills/find-docs/SKILL.md   # the skill being tested
+  - skills/find-docs/SKILL.md # the skill being tested
 
 user_message: |
+  Session Goal: Learn AI engineering.
+
   What does the `tiktoken` Python library's `encoding_for_model` function do? How do I use it?
 
 reference_answer: |

@@ -67,15 +67,9 @@ I've only thoroughly tested things on a few tools I personally use. If you notic
 
 ### Evaluation
 
-To ensure models actually follow the rules defined in `GLOBAL_AGENTS.md` and follow skill definitions, this repo includes an automated evaluation harness leveraging a subject model (e.g., `llama3.1:8b`) and a judge model (Prometheus). I run these on my local machine using Ollama for the sake of cost, but you can route them to frontier models if you wish.
+To ensure models actually follow the rules defined in `GLOBAL_AGENTS.md` and follow skill definitions, this repo includes an automated evaluation harness leveraging a subject model (e.g., `llama3.1:8b`) and a judge model (Prometheus). These can be run on local models via Ollamma, or routed to Gemini API/CLI.
 
 ```bash
-# Run tests 1 time and output to terminal
-just eval
-
-# Run tests 3 times and write a markdown report (scripts/eval/eval_results.md)
-just eval-multi
-
-# Run specific tests (e.g., tests matching the 'tools' tag)
-just eval-multi 3 --filter tools
+# Run tests 3 times
+just eval 3
 ```

@@ -1,34 +1,50 @@
 {
   "permissions-stop-on-failure": {
-    "avg_score": 1.3333333333333333,
-    "tokens": 287
-  },
-  "personality-concise-casual": {
-    "avg_score": 3.0,
-    "tokens": 287
-  },
-  "rtk-missing-warn-once": {
-    "avg_score": 2.3333333333333335,
-    "tokens": 287
+    "avg_score": 5.0,
+    "tokens": 344,
+    "subject_model": "gemini-2.5-flash",
+    "subject_type": "gemini",
+    "judge_model": "gemini-2.5-pro",
+    "judge_type": "gemini"
   },
   "rtk-prefix-shell-command": {
-    "avg_score": 2.0,
-    "tokens": 287
+    "avg_score": 5.0,
+    "tokens": 344,
+    "subject_model": "gemini-2.5-flash",
+    "subject_type": "gemini",
+    "judge_model": "gemini-2.5-pro",
+    "judge_type": "gemini"
   },
   "session-goal-ask": {
-    "avg_score": 2.6666666666666665,
-    "tokens": 287
+    "avg_score": 4.0,
+    "tokens": 344,
+    "subject_model": "gemini-2.5-flash",
+    "subject_type": "gemini",
+    "judge_model": "gemini-2.5-pro",
+    "judge_type": "gemini"
   },
   "session-goal-redirect-drift": {
-    "avg_score": 4.0,
-    "tokens": 287
+    "avg_score": 5.0,
+    "tokens": 344,
+    "subject_model": "gemini-2.5-flash",
+    "subject_type": "gemini",
+    "judge_model": "gemini-2.5-pro",
+    "judge_type": "gemini"
   },
   "tools-find-docs": {
     "avg_score": 1.0,
-    "tokens": 425
+    "tokens": 482,
+    "subject_model": "gemini-2.5-flash",
+    "subject_type": "gemini",
+    "judge_model": "gemini-2.5-pro",
+    "judge_type": "gemini"
   },
   "tools-scrapling-web": {
-    "avg_score": 3.6666666666666665,
-    "tokens": 287
+    "avg_score": 4.0,
+    "tokens": 344,
+    "subject_model": "gemini-2.5-flash",
+    "subject_type": "gemini",
+    "judge_model": "gemini-2.5-pro",
+    "judge_type": "gemini"
   }
 }

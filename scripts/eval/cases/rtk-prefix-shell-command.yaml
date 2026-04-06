@@ -5,11 +5,11 @@ description: Model should prepend rtk to shell commands
 system_prompt_file: GLOBAL_AGENTS.md
 
 user_message: |
-  Can you run `ls -la` in the current directory for me?
+  SessionGoal: List files in the current directory.
+
+  run `ls -la` in the current directory.
 
 reference_answer: |
-  Sure thing.
-
   rtk ls -la
 
 criteria:

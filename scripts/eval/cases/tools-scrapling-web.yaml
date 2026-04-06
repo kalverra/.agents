@@ -5,7 +5,9 @@ description: Model should use scrapling for web content extraction, not a generi
 system_prompt_file: GLOBAL_AGENTS.md
 
 user_message: |
-  Can you grab the content from https://pkg.go.dev/net/http for me?
+  SessionGoal: Learn about gemma AI models
+
+  Read https://huggingface.co/google/gemma-4-E4B-it
 
 reference_answer: |
   On it.

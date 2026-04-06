@@ -57,6 +57,13 @@ try:
 except ImportError:
     HAS_TIKTOKEN = False
 
+try:
+    from google import genai
+    from google.genai import types
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
+
 
 PROMETHEUS_MODEL = "hf.co/divish/M-Prometheus-7B-Q4_K_M-GGUF:latest"
 DEFAULT_SUBJECT = "llama3.1:8b"
@@ -125,8 +132,64 @@ def load_system_prompt(case: dict, repo_root: Path) -> str:
     return ""
 
 
-def call_subject(model: str, system_prompt: str, user_message: str, max_retries: int = 3) -> str:
+def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: int = 3) -> str:
+    """Send system + user message to Gemini model, return response text."""
+    if not HAS_GENAI:
+        raise RuntimeError("google-genai package is required. Run: pip install google-genai")
+
+    client = genai.Client()
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt if system_prompt else None,
+        temperature=0.0,
+        safety_settings=[
+            types.SafetySetting(
+                category=cat,
+                threshold='BLOCK_NONE'
+            ) for cat in [
+                'HARM_CATEGORY_HATE_SPEECH',
+                'HARM_CATEGORY_HARASSMENT',
+                'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                'HARM_CATEGORY_DANGEROUS_CONTENT',
+                'HARM_CATEGORY_CIVIC_INTEGRITY'
+            ]
+        ]
+    )
+
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=user_message,
+                config=config
+            )
+
+            output = ""
+            if response.candidates:
+                cand = response.candidates[0]
+                if cand.content and cand.content.parts:
+                    for part in cand.content.parts:
+                        if part.text:
+                            output += part.text
+                        elif part.call:
+                            # Convert tool call to a string representation
+                            args = ", ".join(f"{k}={v}" for k, v in part.call.args.items())
+                            output += f"\n[Tool Call: {part.call.name}({args})]"
+
+            return output or ""
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"\n  [warn] Gemini error: {e}, retrying in 3s...", file=sys.stderr)
+                import time
+                time.sleep(3)
+            else:
+                raise
+
+def call_subject(model: str, model_type: str, system_prompt: str, user_message: str, max_retries: int = 3) -> str:
     """Send system + user message to subject model, return response text."""
+    if model_type == "gemini":
+        return call_gemini(model, system_prompt, user_message, max_retries) or ""
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -135,7 +198,7 @@ def call_subject(model: str, system_prompt: str, user_message: str, max_retries:
     for attempt in range(max_retries):
         try:
             resp = ollama.chat(model=model, messages=messages)
-            return resp.message.content
+            return resp.message.content or ""
         except ollama.ResponseError as e:
             if attempt < max_retries - 1:
                 print(f"\n  [warn] Ollama error ({e.status_code}), retrying in 3s...", file=sys.stderr)
@@ -144,8 +207,8 @@ def call_subject(model: str, system_prompt: str, user_message: str, max_retries:
                 raise
 
 
-def call_judge(judge_model: str, case: dict, subject_response: str, max_retries: int = 3) -> tuple[str, Optional[int]]:
-    """Call Prometheus judge, return (feedback_text, score)."""
+def call_judge(judge_model: str, judge_type: str, case: dict, subject_response: str, max_retries: int = 5) -> tuple[str, Optional[int]]:
+    """Call judge, return (feedback_text, score)."""
     criteria = case["criteria"]
     prompt = PROMETHEUS_PROMPT.format(
         instruction=case["user_message"],
@@ -159,13 +222,27 @@ def call_judge(judge_model: str, case: dict, subject_response: str, max_retries:
         score_5=criteria["score_5"],
     )
 
+    if judge_type == "gemini":
+        for attempt in range(max_retries):
+            try:
+                raw = call_gemini(judge_model, "", prompt, max_retries=1) or ""
+                score = parse_score(raw)
+                return raw, score
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"\n  [warn] Gemini error: {e}, retrying in 3s...", file=sys.stderr)
+                    import time
+                    time.sleep(3)
+                else:
+                    raise
+
     for attempt in range(max_retries):
         try:
             resp = ollama.chat(
                 model=judge_model,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = resp.message.content
+            raw = resp.message.content or ""
             score = parse_score(raw)
             return raw, score
         except ollama.ResponseError as e:
@@ -227,6 +304,42 @@ def get_git_info(repo_root: Path) -> dict:
         return {"commit": "unknown", "dirty": False}
 
 
+def clear_vram(console=None):
+    """Unloads all models currently loaded in Ollama VRAM."""
+    try:
+        active = ollama.ps()
+        # Handle ProcessResponse object (0.6.x) or dict (older)
+        models_list = getattr(active, "models", []) if not isinstance(active, dict) else active.get("models", [])
+
+        if not models_list:
+            return
+
+        for model in models_list:
+            # Safely extract model name from ProcessModel object, dict, or tuple
+            model_name = getattr(model, "model", getattr(model, "name", None))
+            if isinstance(model, dict) and not model_name:
+                model_name = model.get("name") or model.get("model")
+            if isinstance(model, tuple) and not model_name:
+                model_name = model[0]
+
+            if not model_name:
+                continue
+
+            try:
+                # keep_alive=0 unloads immediately
+                ollama.generate(model=model_name, keep_alive=0)
+                if console:
+                    console.print(f"  [dim]Unloaded: {model_name}[/dim]")
+            except Exception:
+                pass
+
+        # Essential pause for GPU driver/Ollama to reclaim memory
+        time.sleep(2)
+    except Exception as e:
+        if console:
+            console.print(f"  [dim](warn) Failed to clear VRAM: {e}[/dim]")
+
+
 def run_eval(args: argparse.Namespace) -> list[dict]:
     repo_root = Path(args.repo)
     cases_dir = Path(args.cases)
@@ -240,12 +353,18 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
         console.print(f"  Judge   : [yellow]{args.judge}[/yellow]")
         console.print(f"  Cases   : [yellow]{len(cases)}[/yellow]")
         console.print(f"  Iters   : [yellow]{args.iterations}[/yellow]\n")
+
+        console.print("[bold cyan]▶ Pre-run: Cleaning VRAM[/bold cyan]")
+        clear_vram(console)
     else:
         print(f"\nPrompt Eval Harness")
         print(f"  Subject : {args.subject}")
         print(f"  Judge   : {args.judge}")
         print(f"  Cases   : {len(cases)}")
         print(f"  Iters   : {args.iterations}\n")
+
+        print("Cleaning VRAM...")
+        clear_vram()
 
     results = []
     active_cases = []
@@ -287,7 +406,7 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             if console:
                 console.print(f"  → calling subject{iter_prefix}...", end="")
 
-            subject_response = call_subject(args.subject, ac["system_prompt"], ac["case"]["user_message"])
+            subject_response = call_subject(args.subject, args.subject_type, ac["system_prompt"], ac["case"]["user_message"])
 
             if console:
                 console.print(" done")
@@ -303,8 +422,14 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             })
 
     # PHASE 2: Evaluate responses
-    if console and active_cases:
-        console.print("\n[bold cyan]▶ Phase 2: Evaluating Responses (Judge)[/bold cyan]")
+    if active_cases:
+        if console:
+            console.print(f"\n[bold cyan]▶ Phase 2: Evaluating Responses ({args.judge})[/bold cyan]")
+        else:
+            print(f"\nPhase 2: Evaluating Responses ({args.judge})")
+
+        # Unload subject model to clear VRAM for judge
+        clear_vram(console)
 
     for i, ac in enumerate(active_cases, 1):
         name = ac["name"]
@@ -320,7 +445,7 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             if console:
                 console.print(f"  → calling judge{iter_prefix}...", end="")
 
-            judge_raw, score = call_judge(args.judge, ac["case"], it_data["subject_response"])
+            judge_raw, score = call_judge(args.judge, args.judge_type, ac["case"], it_data["subject_response"])
 
             if console:
                 console.print(f" done  {score_emoji(score)} score={score}")
@@ -334,6 +459,7 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             it_data["judge_raw"] = judge_raw
             it_data["score"] = score
 
+
         # Aggregate results for this case
         valid_scores = [it["score"] for it in ac["iterations"] if it["score"] is not None]
         avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
@@ -345,7 +471,9 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             "tags": ac["case"].get("tags", []),
             "description": ac["desc"],
             "subject_model": args.subject,
+            "subject_type": args.subject_type,
             "judge_model": args.judge,
+            "judge_type": args.judge_type,
             "user_message": ac["case"]["user_message"],
             "tokens": ac["tokens"],
             "iterations": ac["iterations"],
@@ -353,6 +481,8 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             "min_score": min_score,
             "max_score": max_score,
         })
+
+    clear_vram(console)
 
     return results
 
@@ -417,7 +547,7 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
             tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
             row = [r["case"], ", ".join(r.get("tags", [])), tokens_str]
 
-            score_val = f"{score:.2f}" if iterations > 1 else str(int(score))
+            score_val = f"{score:.2f}" if iterations > 1 and score is not None else str(int(score)) if score is not None else "ERR"
             score_str = f"[{color}]{score_val}[/{color}] {score_diff}".strip()
 
             if iterations > 1:
@@ -436,9 +566,11 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
             if "error" in r:
                 print(f"  {r['case']}: ERR")
             elif iterations > 1:
-                print(f"  {r['case']}: Avg={r['avg_score']:.2f} Min={r['min_score']} Max={r['max_score']} Tokens={r.get('tokens')}")
+                avg = f"{r['avg_score']:.2f}" if r.get("avg_score") is not None else "ERR"
+                print(f"  {r['case']}: Avg={avg} Min={r['min_score']} Max={r['max_score']} Tokens={r.get('tokens')}")
             else:
-                print(f"  {r['case']}: {r['avg_score']:.0f}/5 Tokens={r.get('tokens')}")
+                avg = f"{r['avg_score']:.0f}/5" if r.get("avg_score") is not None else "ERR"
+                print(f"  {r['case']}: {avg} Tokens={r.get('tokens')}")
         print(f"\nOverall Average: {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}")
 
 
@@ -530,7 +662,8 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
 
         if args.iterations > 1:
             badge = SCORE_BADGE.get(round(score or 0), "❓")
-            lines.append(f"**Average Score:** {badge} {score:.2f} {score_diff} (Min: {r.get('min_score')}, Max: {r.get('max_score')})  ")
+            score_str_md = f"{score:.2f}" if score is not None else "ERR"
+            lines.append(f"**Average Score:** {badge} {score_str_md} {score_diff} (Min: {r.get('min_score')}, Max: {r.get('max_score')})  ")
         else:
             badge = SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
             lines.append(f"**Score:** {badge} {score_diff}  ")
@@ -553,10 +686,10 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
                 f"#### {iter_header} (`{r.get('subject_model', '')}`)",
                 f"**Score:** {SCORE_BADGE.get(it['score'], '❓')}",
                 f"",
-                it.get("subject_response", "").strip(),
+                (it.get("subject_response") or "").strip(),
                 f"\n**Judge Feedback**",
                 f"",
-                it.get("judge_raw", "").strip(),
+                (it.get("judge_raw") or "").strip(),
                 f"\n",
             ]
         lines.append("---\n")
@@ -568,8 +701,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Eval harness: test whether models follow .agents instructions"
     )
-    parser.add_argument("--subject", default=DEFAULT_SUBJECT, help="Subject model (ollama)")
-    parser.add_argument("--judge", default=PROMETHEUS_MODEL, help="Judge model (ollama)")
+    parser.add_argument("--subject-type", choices=["local", "gemini"], default="local", help="Type of subject model")
+    parser.add_argument("--judge-type", choices=["local", "gemini"], default="local", help="Type of judge model")
+    parser.add_argument("--subject", help="Subject model (default varies by type)")
+    parser.add_argument("--judge", help="Judge model (default varies by type)")
     parser.add_argument("--cases", default=str(Path(__file__).parent / "cases"), help="Test cases directory")
     parser.add_argument("--filter", help="Only run cases with this tag")
     parser.add_argument("--iterations", type=int, default=1, help="Number of times to run each case")
@@ -583,6 +718,11 @@ def main():
         help="Repo root (for system_prompt_file resolution)",
     )
     args = parser.parse_args()
+
+    if args.subject is None:
+        args.subject = DEFAULT_SUBJECT if args.subject_type == "local" else "gemini-2.5-flash" if args.subject_type == "gemini" else None
+    if args.judge is None:
+        args.judge = PROMETHEUS_MODEL if args.judge_type == "local" else "gemini-2.5-pro" if args.judge_type == "gemini" else None
 
     repo_root = Path(args.repo)
     history_file = Path(__file__).parent / "eval_history.json"
@@ -632,12 +772,19 @@ def main():
     results = run_eval(args)
     print_summary(results, history, console, args.iterations)
 
-    new_history_content = {
-        r["case"]: {"avg_score": r.get("avg_score"), "tokens": r.get("tokens")}
-        for r in results if "error" not in r
-    }
+    # Merge new results into existing history
+    for r in results:
+        if "error" not in r:
+            history[r["case"]] = {
+                "avg_score": r.get("avg_score"),
+                "tokens": r.get("tokens"),
+                "subject_model": r.get("subject_model"),
+                "subject_type": r.get("subject_type"),
+                "judge_model": r.get("judge_model"),
+                "judge_type": r.get("judge_type")
+            }
 
-    history_file.write_text(json.dumps(new_history_content, indent=2))
+    history_file.write_text(json.dumps(history, indent=2))
 
     if args.output:
         out = Path(args.output)

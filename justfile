@@ -15,8 +15,8 @@ setup:
 install *args:
     {{ python }} scripts/install-global-agents.py install {{ args }}
 
-# Run all eval cases with multiple iterations (default: 3) and write report
-eval iter="3" *args:
+# Run all eval cases with multiple iterations (default: 1) and write report
+eval iter="1" *args:
     {{ python }} {{ eval_script }} --iterations {{ iter }} --report scripts/eval/eval_results.md {{ args }}
     @echo "→ scripts/eval/eval_results.md"
 

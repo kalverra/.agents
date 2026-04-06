@@ -5,3 +5,6 @@ __pycache__/
 cmd/pr-review/pr-review
 USER_AGENTS.md
 scripts/eval/eval_results.md
+
+.gemini/
+gha-creds-*.json

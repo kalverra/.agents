@@ -5,25 +5,24 @@ on:
     branches:
       - main
     paths:
-      - 'GLOBAL_AGENTS.md'
-      - 'USER_AGENTS.md'
-      - 'scripts/eval/**'
-      - '.github/workflows/eval-pr.yaml'
+      - "*.md"
+      - "scripts/eval/**"
+      - ".github/workflows/eval-pr.yaml"
 
 jobs:
   evaluate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          path: 'pr-repo'
+          path: "pr-repo"
 
       - name: Checkout Main code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          ref: 'main'
-          path: 'main-repo'
+          ref: "main"
+          path: "main-repo"
 
       - name: Compare prompt evaluations
         run: |

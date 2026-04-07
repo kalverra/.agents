@@ -32,9 +32,9 @@ from typing import Optional
 
 try:
     import ollama
-except ImportError:
-    print("ERROR: ollama package not installed. Run: pip install ollama", file=sys.stderr)
-    sys.exit(1)
+    HAS_OLLAMA = True
+except Exception:
+    HAS_OLLAMA = False
 
 try:
     import yaml
@@ -132,8 +132,8 @@ def load_system_prompt(case: dict, repo_root: Path) -> str:
     return ""
 
 
-def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: int = 3) -> str:
-    """Send system + user message to Gemini model, return response text."""
+def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: int = 3) -> tuple[str, int]:
+    """Send system + user message to Gemini model, return (response_text, output_tokens)."""
     if not HAS_GENAI:
         raise RuntimeError("google-genai package is required. Run: pip install google-genai")
 
@@ -176,19 +176,26 @@ def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: 
                             args = ", ".join(f"{k}={v}" for k, v in part.call.args.items())
                             output += f"\n[Tool Call: {part.call.name}({args})]"
 
-            return output or ""
+            output_tokens = 0
+            if response.usage_metadata:
+                output_tokens = response.usage_metadata.candidates_token_count or 0
+
+            return output or "", output_tokens
         except Exception as e:
             if attempt < max_retries - 1:
-                print(f"\n  [warn] Gemini error: {e}, retrying in 3s...", file=sys.stderr)
-                import time
-                time.sleep(3)
+                wait = min(2 ** attempt, 30)
+                print(f"\n  [warn] Gemini error: {e}, retrying in {wait}s...", file=sys.stderr)
+                time.sleep(wait)
             else:
                 raise
 
-def call_subject(model: str, model_type: str, system_prompt: str, user_message: str, max_retries: int = 3) -> str:
-    """Send system + user message to subject model, return response text."""
+def call_subject(model: str, model_type: str, system_prompt: str, user_message: str, max_retries: int = 3) -> tuple[str, int]:
+    """Send system + user message to subject model, return (response_text, output_tokens)."""
     if model_type == "gemini":
-        return call_gemini(model, system_prompt, user_message, max_retries) or ""
+        return call_gemini(model, system_prompt, user_message, max_retries)
+
+    if not HAS_OLLAMA:
+        raise RuntimeError("ollama package is required for local models. Run: pip install ollama")
 
     messages = []
     if system_prompt:
@@ -198,11 +205,12 @@ def call_subject(model: str, model_type: str, system_prompt: str, user_message: 
     for attempt in range(max_retries):
         try:
             resp = ollama.chat(model=model, messages=messages)
-            return resp.message.content or ""
+            return resp.message.content or "", resp.eval_count or 0
         except ollama.ResponseError as e:
             if attempt < max_retries - 1:
-                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in 3s...", file=sys.stderr)
-                time.sleep(3)
+                wait = min(2 ** attempt, 30)
+                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in {wait}s...", file=sys.stderr)
+                time.sleep(wait)
             else:
                 raise
 
@@ -225,16 +233,19 @@ def call_judge(judge_model: str, judge_type: str, case: dict, subject_response: 
     if judge_type == "gemini":
         for attempt in range(max_retries):
             try:
-                raw = call_gemini(judge_model, "", prompt, max_retries=1) or ""
+                raw, _ = call_gemini(judge_model, "", prompt, max_retries=1)
                 score = parse_score(raw)
                 return raw, score
             except Exception as e:
                 if attempt < max_retries - 1:
-                    print(f"\n  [warn] Gemini error: {e}, retrying in 3s...", file=sys.stderr)
-                    import time
-                    time.sleep(3)
+                    wait = min(2 ** attempt, 30)
+                    print(f"\n  [warn] Gemini error: {e}, retrying in {wait}s...", file=sys.stderr)
+                    time.sleep(wait)
                 else:
                     raise
+
+    if not HAS_OLLAMA:
+        raise RuntimeError("ollama package is required for local judge models. Run: pip install ollama")
 
     for attempt in range(max_retries):
         try:
@@ -247,8 +258,9 @@ def call_judge(judge_model: str, judge_type: str, case: dict, subject_response: 
             return raw, score
         except ollama.ResponseError as e:
             if attempt < max_retries - 1:
-                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in 3s...", file=sys.stderr)
-                time.sleep(3)
+                wait = min(2 ** attempt, 30)
+                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in {wait}s...", file=sys.stderr)
+                time.sleep(wait)
             else:
                 raise
 
@@ -306,6 +318,8 @@ def get_git_info(repo_root: Path) -> dict:
 
 def clear_vram(console=None):
     """Unloads all models currently loaded in Ollama VRAM."""
+    if not HAS_OLLAMA:
+        return
     try:
         active = ollama.ps()
         # Handle ProcessResponse object (0.6.x) or dict (older)
@@ -347,6 +361,8 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
 
     cases = load_cases(cases_dir, args.filter)
 
+    use_local = args.subject_type == "local" or args.judge_type == "local"
+
     if console:
         console.print(f"\n[bold cyan]🧪 Prompt Eval Harness[/bold cyan]")
         console.print(f"  Subject : [yellow]{args.subject}[/yellow]")
@@ -354,8 +370,9 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
         console.print(f"  Cases   : [yellow]{len(cases)}[/yellow]")
         console.print(f"  Iters   : [yellow]{args.iterations}[/yellow]\n")
 
-        console.print("[bold cyan]▶ Pre-run: Cleaning VRAM[/bold cyan]")
-        clear_vram(console)
+        if use_local:
+            console.print("[bold cyan]▶ Pre-run: Cleaning VRAM[/bold cyan]")
+            clear_vram(console)
     else:
         print(f"\nPrompt Eval Harness")
         print(f"  Subject : {args.subject}")
@@ -363,8 +380,9 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
         print(f"  Cases   : {len(cases)}")
         print(f"  Iters   : {args.iterations}\n")
 
-        print("Cleaning VRAM...")
-        clear_vram()
+        if use_local:
+            print("Cleaning VRAM...")
+            clear_vram()
 
     results = []
     active_cases = []
@@ -377,7 +395,10 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             system_prompt = load_system_prompt(case, repo_root)
             tokens = None
             if HAS_TIKTOKEN:
-                tokens = len(tiktoken.get_encoding("cl100k_base").encode(system_prompt))
+                try:
+                    tokens = len(tiktoken.get_encoding("cl100k_base").encode(system_prompt))
+                except Exception:
+                    pass
             active_cases.append({
                 "case": case,
                 "name": name,
@@ -406,7 +427,7 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             if console:
                 console.print(f"  → calling subject{iter_prefix}...", end="")
 
-            subject_response = call_subject(args.subject, args.subject_type, ac["system_prompt"], ac["case"]["user_message"])
+            subject_response, output_tokens = call_subject(args.subject, args.subject_type, ac["system_prompt"], ac["case"]["user_message"])
 
             if console:
                 console.print(" done")
@@ -418,7 +439,8 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
 
             ac["iterations"].append({
                 "iteration": it,
-                "subject_response": subject_response
+                "subject_response": subject_response,
+                "output_tokens": output_tokens,
             })
 
     # PHASE 2: Evaluate responses
@@ -429,7 +451,8 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             print(f"\nPhase 2: Evaluating Responses ({args.judge})")
 
         # Unload subject model to clear VRAM for judge
-        clear_vram(console)
+        if use_local:
+            clear_vram(console)
 
     for i, ac in enumerate(active_cases, 1):
         name = ac["name"]
@@ -466,6 +489,11 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
         min_score = min(valid_scores) if valid_scores else None
         max_score = max(valid_scores) if valid_scores else None
 
+        output_tokens_list = [it.get("output_tokens", 0) for it in ac["iterations"]]
+        avg_output_tokens = sum(output_tokens_list) / len(output_tokens_list) if output_tokens_list else 0
+        input_tokens = ac["tokens"]
+        token_score = round(input_tokens + avg_output_tokens * 5) if input_tokens is not None else None
+
         results.append({
             "case": ac["name"],
             "tags": ac["case"].get("tags", []),
@@ -475,14 +503,17 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             "judge_model": args.judge,
             "judge_type": args.judge_type,
             "user_message": ac["case"]["user_message"],
-            "tokens": ac["tokens"],
+            "tokens": input_tokens,
+            "avg_output_tokens": round(avg_output_tokens),
+            "token_score": token_score,
             "iterations": ac["iterations"],
             "avg_score": avg_score,
             "min_score": min_score,
             "max_score": max_score,
         })
 
-    clear_vram(console)
+    if use_local:
+        clear_vram(console)
 
     return results
 
@@ -513,12 +544,17 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
     avg_scores = [r["avg_score"] for r in results if r.get("avg_score") is not None]
     total_avg = sum(avg_scores) / len(avg_scores) if avg_scores else 0
     passed = sum(1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0)
+    total_input_tokens = sum(r.get("tokens") or 0 for r in results if "error" not in r)
+    total_output_tokens = sum(r.get("avg_output_tokens") or 0 for r in results if "error" not in r)
+    total_token_score = sum(r.get("token_score") or 0 for r in results if "error" not in r)
 
     if HAS_RICH and console:
         table = Table(title="\nResults Summary", show_lines=True)
         table.add_column("Case", style="cyan", no_wrap=True)
         table.add_column("Tags", style="dim")
-        table.add_column("Tokens", justify="center")
+        table.add_column("In Tokens", justify="right")
+        table.add_column("Out Tokens", justify="right")
+        table.add_column("Token Score", justify="right")
         if iterations > 1:
             table.add_column("Avg", justify="center")
             table.add_column("Min", justify="center")
@@ -529,7 +565,7 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
 
         for r in results:
             if "error" in r:
-                cols = [r["case"], "", "ERR"]
+                cols = [r["case"], "", "ERR", "ERR", "ERR"]
                 if iterations > 1: cols += ["ERR", "ERR", "ERR"]
                 else: cols += ["ERR"]
                 cols += ["⚠"]
@@ -542,10 +578,13 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
 
             prev = history.get(r["case"], {})
             score_diff = format_diff(score, prev.get("avg_score"))
-            token_diff = format_diff(r.get("tokens"), prev.get("tokens"), invert_color=True)
+            token_score_diff = format_diff(r.get("token_score"), prev.get("token_score"), invert_color=True)
 
-            tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
-            row = [r["case"], ", ".join(r.get("tags", [])), tokens_str]
+            in_tok = str(r.get("tokens", "?"))
+            out_tok = str(r.get("avg_output_tokens", "?"))
+            ts = r.get("token_score", "?")
+            token_score_str = f"{ts} {token_score_diff}".strip()
+            row = [r["case"], ", ".join(r.get("tags", [])), in_tok, out_tok, token_score_str]
 
             score_val = f"{score:.2f}" if iterations > 1 and score is not None else str(int(score)) if score is not None else "ERR"
             score_str = f"[{color}]{score_val}[/{color}] {score_diff}".strip()
@@ -559,7 +598,8 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
             table.add_row(*row)
 
         console.print(table)
-        console.print(f"\n[bold]Overall Average:[/bold] {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}\n")
+        console.print(f"\n[bold]Overall Average:[/bold] {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}")
+        console.print(f"[bold]Total Token Score:[/bold] {total_token_score}  [dim](in={total_input_tokens} out={total_output_tokens})[/dim]\n")
     else:
         print("\n--- Results ---")
         for r in results:
@@ -567,11 +607,12 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
                 print(f"  {r['case']}: ERR")
             elif iterations > 1:
                 avg = f"{r['avg_score']:.2f}" if r.get("avg_score") is not None else "ERR"
-                print(f"  {r['case']}: Avg={avg} Min={r['min_score']} Max={r['max_score']} Tokens={r.get('tokens')}")
+                print(f"  {r['case']}: Avg={avg} Min={r['min_score']} Max={r['max_score']} In={r.get('tokens')} Out={r.get('avg_output_tokens')} TokenScore={r.get('token_score')}")
             else:
                 avg = f"{r['avg_score']:.0f}/5" if r.get("avg_score") is not None else "ERR"
-                print(f"  {r['case']}: {avg} Tokens={r.get('tokens')}")
+                print(f"  {r['case']}: {avg} In={r.get('tokens')} Out={r.get('avg_output_tokens')} TokenScore={r.get('token_score')}")
         print(f"\nOverall Average: {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}")
+        print(f"Total Token Score: {total_token_score} (in={total_input_tokens} out={total_output_tokens})")
 
 
 SCORE_BADGE = {
@@ -589,6 +630,9 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
     avg_scores = [r["avg_score"] for r in results if r.get("avg_score") is not None]
     total_avg = sum(avg_scores) / len(avg_scores) if avg_scores else 0
     passed = sum(1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0)
+    total_input_tokens = sum(r.get("tokens") or 0 for r in results if "error" not in r)
+    total_output_tokens = sum(r.get("avg_output_tokens") or 0 for r in results if "error" not in r)
+    total_token_score = sum(r.get("token_score") or 0 for r in results if "error" not in r)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     git_status = f"`{git_info['commit']}`"
@@ -603,42 +647,45 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
         f"**Judge:** `{args.judge}`  ",
         f"**Cases:** {len(results)}  ",
         f"**Iterations:** {args.iterations}  ",
-        f"**Average score:** {total_avg:.2f}/5  |  **Passed (Avg >= 4.0):** {passed}/{len(avg_scores)}\n",
+        f"**Average score:** {total_avg:.2f}/5  |  **Passed (Avg >= 4.0):** {passed}/{len(avg_scores)}  ",
+        f"**Total Token Score:** {total_token_score} (in={total_input_tokens} out={total_output_tokens})\n",
         "---\n",
         "## Summary\n",
     ]
 
     if args.iterations > 1:
-        lines.append("| # | Case | Tags | Tokens | Avg | Min | Max |")
-        lines.append("|---|------|------|--------|-----|-----|-----|")
+        lines.append("| # | Case | Tags | In | Out | Token Score | Avg | Min | Max |")
+        lines.append("|---|------|------|----|-----|-------------|-----|-----|-----|")
     else:
-        lines.append("| # | Case | Tags | Tokens | Score |")
-        lines.append("|---|------|------|--------|-------|")
+        lines.append("| # | Case | Tags | In | Out | Token Score | Score |")
+        lines.append("|---|------|------|----|-----|-------------|-------|")
 
     for i, r in enumerate(results, 1):
         tags = ", ".join(f"`{t}`" for t in r.get("tags", []))
         if "error" in r:
             if args.iterations > 1:
-                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ERR |")
+                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ERR | ERR | ERR |")
             else:
-                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ⚠ error |")
+                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ⚠ error |")
             continue
 
         prev = history.get(r["case"], {})
         score = r.get("avg_score")
         score_diff = format_diff(score, prev.get("avg_score"), is_fmt=False)
-        token_diff = format_diff(r.get("tokens"), prev.get("tokens"), is_fmt=False)
+        token_score_diff = format_diff(r.get("token_score"), prev.get("token_score"), is_fmt=False)
 
-        tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
+        in_tok = r.get("tokens", "?")
+        out_tok = r.get("avg_output_tokens", "?")
+        token_score_str = f"{r.get('token_score', '?')} {token_score_diff}".strip()
 
         if args.iterations > 1:
             badge = SCORE_BADGE.get(round(score), "❓")
             score_str = f"{badge} {score:.2f} {score_diff}".strip()
-            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {tokens_str} | {score_str} | {r['min_score']} | {r['max_score']} |")
+            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {in_tok} | {out_tok} | {token_score_str} | {score_str} | {r['min_score']} | {r['max_score']} |")
         else:
             badge = SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
             score_str = f"{badge} {score_diff}".strip()
-            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {tokens_str} | {score_str} |")
+            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {in_tok} | {out_tok} | {token_score_str} | {score_str} |")
 
     lines.append("\n---\n")
     lines.append("## Case Details\n")
@@ -646,14 +693,14 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
     for r in results:
         tags = " ".join(f"`{t}`" for t in r.get("tags", []))
         prev = history.get(r.get("case", ""), {})
-        token_diff = format_diff(r.get("tokens"), prev.get("tokens"), is_fmt=False)
-        tokens_str = f"{r.get('tokens', '?')} {token_diff}".strip()
+        token_score_diff = format_diff(r.get("token_score"), prev.get("token_score"), is_fmt=False)
+        token_score_str = f"{r.get('token_score', '?')} {token_score_diff}".strip()
 
         lines += [
             f"### {r['case']}",
             f"",
             f"{tags}  ",
-            f"**Tokens:** {tokens_str}  ",
+            f"**Token Score:** {token_score_str} (in={r.get('tokens', '?')} out={r.get('avg_output_tokens', '?')}×5)  ",
             f"**Description:** {r.get('description', '')}\n",
         ]
 
@@ -778,6 +825,8 @@ def main():
             history[r["case"]] = {
                 "avg_score": r.get("avg_score"),
                 "tokens": r.get("tokens"),
+                "avg_output_tokens": r.get("avg_output_tokens"),
+                "token_score": r.get("token_score"),
                 "subject_model": r.get("subject_model"),
                 "subject_type": r.get("subject_type"),
                 "judge_model": r.get("judge_model"),

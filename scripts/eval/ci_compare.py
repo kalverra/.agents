@@ -62,8 +62,8 @@ def main():
         lines.append(f"> 🟠 **WARNING:** Quality regression detected! Score dropped from {main_total:.2f} to {pr_total:.2f}.")
         lines.append("")
 
-    lines.append("| Case | Score | Tokens |")
-    lines.append("|------|-------|--------|")
+    lines.append("| Case | Score | Token Score |")
+    lines.append("|------|-------|-------------|")
 
     for case_id, pr_data in pr_history.items():
         main_data = main_history.get(case_id, {})
@@ -72,14 +72,14 @@ def main():
         main_score = main_data.get("avg_score")
         score_df = format_diff(pr_score, main_score)
 
-        pr_tokens = pr_data.get("tokens")
-        main_tokens = main_data.get("tokens")
-        token_df = format_diff(pr_tokens, main_tokens, invert_color=True)
+        pr_token_score = pr_data.get("token_score")
+        main_token_score = main_data.get("token_score")
+        token_score_df = format_diff(pr_token_score, main_token_score, invert_color=True)
 
         sc_str = f"{score_emoji(pr_score)} {pr_score:.2f} {score_df}".strip() if pr_score is not None else "ERR"
-        tk_str = f"{pr_tokens or '?'} {token_df}".strip()
+        ts_str = f"{pr_token_score or '?'} {token_score_df}".strip()
 
-        lines.append(f"| {case_id} | {sc_str} | {tk_str} |")
+        lines.append(f"| {case_id} | {sc_str} | {ts_str} |")
 
     out_path.write_text("\n".join(lines))
 

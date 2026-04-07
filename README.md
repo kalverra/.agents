@@ -16,7 +16,7 @@ You'll need to setup these tools for all the skills and instructions to work pro
 
 ### Edit `USER_AGENTS.md`
 
-An optional, hidden, user-specific context that is loaded into `GLOBAL_AGENTS.md` at install time. Example:
+An optional, gitignored file with your personal context. At `just install`, it is merged into the files deployed to each tool (and into `GLOBAL_AGENTS.local.md` in this repo for `@`-mentions). The tracked `GLOBAL_AGENTS.md` keeps a placeholder so the template stays shareable. Example:
 
 ```md
 Name: <your-name>

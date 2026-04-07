@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 cmd/pr-review/pr-review
 USER_AGENTS.md
+GLOBAL_AGENTS.local.md
 scripts/eval/eval_results.md
 
 .gemini/

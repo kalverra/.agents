@@ -64,6 +64,11 @@ try:
 except ImportError:
     HAS_GENAI = False
 
+_scripts_dir = Path(__file__).resolve().parent.parent
+if str(_scripts_dir) not in sys.path:
+    sys.path.insert(0, str(_scripts_dir))
+from user_agents_merge import merge_user_agents  # noqa: E402
+
 
 PROMETHEUS_MODEL = "hf.co/divish/M-Prometheus-7B-Q4_K_M-GGUF:latest"
 DEFAULT_SUBJECT = "llama3.1:8b"
@@ -96,20 +101,14 @@ Score 5: {score_5}
 """
 
 
-USER_AGENTS_PLACEHOLDER = "<!-- Instructions from USER_AGENTS.md are appended here during install -->"
-
-
 def resolve_placeholders(content: str, repo_root: Path) -> str:
-    """Substitute the USER_AGENTS.md install-time placeholder with real content."""
-    user_agents = repo_root / "USER_AGENTS.md"
-    if USER_AGENTS_PLACEHOLDER in content and user_agents.exists():
-        content = content.replace(USER_AGENTS_PLACEHOLDER, user_agents.read_text().strip())
-    return content
+    """Substitute USER_AGENTS.md into template text (same rules as install)."""
+    return merge_user_agents(content, repo_root / "USER_AGENTS.md")
 
 
 def load_file(path: Path, repo_root: Path) -> str:
     """Read a file and resolve any install-time placeholders."""
-    return resolve_placeholders(path.read_text(), repo_root)
+    return resolve_placeholders(path.read_text(encoding="utf-8"), repo_root)
 
 
 def load_system_prompt(case: dict, repo_root: Path) -> str:

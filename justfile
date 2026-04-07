@@ -29,3 +29,8 @@ eval-tag tag *args:
 eval-verbose *args:
     {{ python }} {{ eval_script }} --verbose --report scripts/eval/eval_results.md {{ args }}
     @echo "→ scripts/eval/eval_results.md"
+
+# Run eval using Gemini API (requires GEMINI_API_KEY)
+eval-gemini iter="1" *args:
+    {{ python }} {{ eval_script }} --subject-type gemini --judge-type gemini --iterations {{ iter }} --report scripts/eval/eval_results.md {{ args }}
+    @echo "→ scripts/eval/eval_results.md"

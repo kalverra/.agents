@@ -21,7 +21,7 @@ fi
 
 INPUT="$(cat)"
 # Handle both .tool_input.command (Gemini/Claude) and .arguments.command (Cursor/Generic)
-COMMAND="$(echo "$INPUT" | jq -r '.tool_input.command // .arguments.command // empty')"
+COMMAND="$(jq -r '.tool_input.command // .arguments.command // empty' <<< "$INPUT")"
 
 if [ -z "$COMMAND" ] || [ "$COMMAND" = "null" ]; then
   exit 0
@@ -34,7 +34,8 @@ case "$COMMAND" in
     ;;
 esac
 
-REWRITTEN="rtk $COMMAND"
+# https://github.com/rtk-ai/rtk/issues/682
+REWRITTEN="rtk $COMMAND 2> >(grep -v 'No hook installed' >&2)"
 
 case "${AGENT_TYPE:-}" in
   claude)

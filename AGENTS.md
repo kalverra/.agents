@@ -8,7 +8,7 @@ Portable skills and rules. GLOBAL_AGENTS.md is machine-wide context.
 <skills>
 Located in `skills/`
 - Define general, helpful skills
-- Helped by Go programs in `cmd/`
+- Helped by Go programs in `cmd/`. Push as much work as possible to Go scripts, only involve AI when absolutely necessary.
 </skills>
 
 <venv>

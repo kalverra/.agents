@@ -14,6 +14,23 @@ You'll need to setup these tools for all the skills and instructions to work pro
 - [ctx7](https://context7.com/): Efficient and intelligent docs lookup for ai agents.
 - [scrapling](https://github.com/scrapling/scrapling): Efficient web scraping for ai agents, don't waste tokens on <html> tags.
 
+### Edit `USER_AGENTS.md`
+
+An optional, hidden, user-specific context that is loaded into `GLOBAL_AGENTS.md` at install time. Example:
+
+```md
+Name: <your-name>
+Username: <your-username>
+<stack>
+Go
+Python
+</stack>
+<goals>
+Write highly testable code.
+Master AI engineering.
+</goals>
+```
+
 ### Install Skills and Hooks
 
 ```sh
@@ -40,25 +57,15 @@ python scripts/install-global-agents.py install
 
 ## Global Rules and Skills
 
+### Session Prompt
+
+Your agents should now start most sessions asking you for a SessionGoal. You can pre-provide it by starting your first prompt with `SessionGoal: Figure out an auth bug`.
+
+This serves to keep you focused, and helps stop you from bloating AI context. When the goal is complete, you can move to a new session and get your context space back.
+
 ### [GLOBAL_AGENTS.md](GLOBAL_AGENTS.md)
 
 Your global context that is loaded into every agent. It replaces `CLAUDE.md`, `GEMINI.md`, `.cursor/global-rules.mdc`, etc.
-
-### USER_AGENTS.md
-
-An optional, hidden, user-specific context that is loaded into `GLOBAL_AGENTS.md` at install time. Example:
-```md
-Name: <your-name>
-Username: <your-username>
-<stack>
-Go
-Python
-</stack>
-<goals>
-Write highly testable code.
-Master AI engineering.
-</goals>
-```
 
 ### [`find-docs`](skills/find-docs/SKILL.md)
 
@@ -85,12 +92,8 @@ I've only thoroughly tested things on a few tools I personally use. If you notic
 ### Setup
 
 ```sh
-# Create venv and install dependencies
+# Create setup pre-commit, venv, and install dependencies
 just setup
-
-# Or manually:
-python3 -m venv scripts/.venv
-scripts/.venv/bin/pip install -r scripts/requirements.txt
 ```
 
 ### Evaluation

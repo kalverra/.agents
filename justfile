@@ -7,6 +7,7 @@ default:
 
 # Create venv and install all dependencies
 setup:
+    pre-commit install
     python3 -m venv --clear scripts/.venv
     {{ python }} -m pip install -q -r scripts/requirements.txt
     @echo "✓ venv ready"

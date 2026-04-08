@@ -32,6 +32,7 @@ from typing import Optional
 
 try:
     import ollama
+
     HAS_OLLAMA = True
 except Exception:
     HAS_OLLAMA = False
@@ -46,13 +47,14 @@ try:
     from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
-    from rich import print as rprint
+
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
 
 try:
     import tiktoken
+
     HAS_TIKTOKEN = True
 except ImportError:
     HAS_TIKTOKEN = False
@@ -60,6 +62,7 @@ except ImportError:
 try:
     from google import genai
     from google.genai import types
+
     HAS_GENAI = True
 except ImportError:
     HAS_GENAI = False
@@ -131,10 +134,14 @@ def load_system_prompt(case: dict, repo_root: Path) -> str:
     return ""
 
 
-def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: int = 3) -> tuple[str, int]:
+def call_gemini(
+    model: str, system_prompt: str, user_message: str, max_retries: int = 3
+) -> tuple[str, int]:
     """Send system + user message to Gemini model, return (response_text, output_tokens)."""
     if not HAS_GENAI:
-        raise RuntimeError("google-genai package is required. Run: pip install google-genai")
+        raise RuntimeError(
+            "google-genai package is required. Run: pip install google-genai"
+        )
 
     client = genai.Client()
 
@@ -142,25 +149,21 @@ def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: 
         system_instruction=system_prompt if system_prompt else None,
         temperature=0.0,
         safety_settings=[
-            types.SafetySetting(
-                category=cat,
-                threshold='BLOCK_NONE'
-            ) for cat in [
-                'HARM_CATEGORY_HATE_SPEECH',
-                'HARM_CATEGORY_HARASSMENT',
-                'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                'HARM_CATEGORY_DANGEROUS_CONTENT',
-                'HARM_CATEGORY_CIVIC_INTEGRITY'
+            types.SafetySetting(category=cat, threshold="BLOCK_NONE")
+            for cat in [
+                "HARM_CATEGORY_HATE_SPEECH",
+                "HARM_CATEGORY_HARASSMENT",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "HARM_CATEGORY_CIVIC_INTEGRITY",
             ]
-        ]
+        ],
     )
 
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
-                model=model,
-                contents=user_message,
-                config=config
+                model=model, contents=user_message, config=config
             )
 
             output = ""
@@ -172,7 +175,9 @@ def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: 
                             output += part.text
                         elif part.call:
                             # Convert tool call to a string representation
-                            args = ", ".join(f"{k}={v}" for k, v in part.call.args.items())
+                            args = ", ".join(
+                                f"{k}={v}" for k, v in part.call.args.items()
+                            )
                             output += f"\n[Tool Call: {part.call.name}({args})]"
 
             output_tokens = 0
@@ -182,19 +187,31 @@ def call_gemini(model: str, system_prompt: str, user_message: str, max_retries: 
             return output or "", output_tokens
         except Exception as e:
             if attempt < max_retries - 1:
-                wait = min(2 ** attempt, 30)
-                print(f"\n  [warn] Gemini error: {e}, retrying in {wait}s...", file=sys.stderr)
+                wait = min(2**attempt, 30)
+                print(
+                    f"\n  [warn] Gemini error: {e}, retrying in {wait}s...",
+                    file=sys.stderr,
+                )
                 time.sleep(wait)
             else:
                 raise
 
-def call_subject(model: str, model_type: str, system_prompt: str, user_message: str, max_retries: int = 3) -> tuple[str, int]:
+
+def call_subject(
+    model: str,
+    model_type: str,
+    system_prompt: str,
+    user_message: str,
+    max_retries: int = 3,
+) -> tuple[str, int]:
     """Send system + user message to subject model, return (response_text, output_tokens)."""
     if model_type == "gemini":
         return call_gemini(model, system_prompt, user_message, max_retries)
 
     if not HAS_OLLAMA:
-        raise RuntimeError("ollama package is required for local models. Run: pip install ollama")
+        raise RuntimeError(
+            "ollama package is required for local models. Run: pip install ollama"
+        )
 
     messages = []
     if system_prompt:
@@ -207,14 +224,23 @@ def call_subject(model: str, model_type: str, system_prompt: str, user_message: 
             return resp.message.content or "", resp.eval_count or 0
         except ollama.ResponseError as e:
             if attempt < max_retries - 1:
-                wait = min(2 ** attempt, 30)
-                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in {wait}s...", file=sys.stderr)
+                wait = min(2**attempt, 30)
+                print(
+                    f"\n  [warn] Ollama error ({e.status_code}), retrying in {wait}s...",
+                    file=sys.stderr,
+                )
                 time.sleep(wait)
             else:
                 raise
 
 
-def call_judge(judge_model: str, judge_type: str, case: dict, subject_response: str, max_retries: int = 5) -> tuple[str, Optional[int]]:
+def call_judge(
+    judge_model: str,
+    judge_type: str,
+    case: dict,
+    subject_response: str,
+    max_retries: int = 5,
+) -> tuple[str, Optional[int]]:
     """Call judge, return (feedback_text, score)."""
     criteria = case["criteria"]
     prompt = PROMETHEUS_PROMPT.format(
@@ -237,14 +263,19 @@ def call_judge(judge_model: str, judge_type: str, case: dict, subject_response: 
                 return raw, score
             except Exception as e:
                 if attempt < max_retries - 1:
-                    wait = min(2 ** attempt, 30)
-                    print(f"\n  [warn] Gemini error: {e}, retrying in {wait}s...", file=sys.stderr)
+                    wait = min(2**attempt, 30)
+                    print(
+                        f"\n  [warn] Gemini error: {e}, retrying in {wait}s...",
+                        file=sys.stderr,
+                    )
                     time.sleep(wait)
                 else:
                     raise
 
     if not HAS_OLLAMA:
-        raise RuntimeError("ollama package is required for local judge models. Run: pip install ollama")
+        raise RuntimeError(
+            "ollama package is required for local judge models. Run: pip install ollama"
+        )
 
     for attempt in range(max_retries):
         try:
@@ -257,8 +288,11 @@ def call_judge(judge_model: str, judge_type: str, case: dict, subject_response: 
             return raw, score
         except ollama.ResponseError as e:
             if attempt < max_retries - 1:
-                wait = min(2 ** attempt, 30)
-                print(f"\n  [warn] Ollama error ({e.status_code}), retrying in {wait}s...", file=sys.stderr)
+                wait = min(2**attempt, 30)
+                print(
+                    f"\n  [warn] Ollama error ({e.status_code}), retrying in {wait}s...",
+                    file=sys.stderr,
+                )
                 time.sleep(wait)
             else:
                 raise
@@ -289,7 +323,10 @@ def load_cases(cases_dir: Path, tag_filter: Optional[str]) -> list[dict]:
             continue
         cases.append(c)
     if not cases:
-        raise ValueError(f"No cases found in {cases_dir}" + (f" with tag '{tag_filter}'" if tag_filter else ""))
+        raise ValueError(
+            f"No cases found in {cases_dir}"
+            + (f" with tag '{tag_filter}'" if tag_filter else "")
+        )
     return cases
 
 
@@ -300,15 +337,26 @@ def get_git_info(repo_root: Path) -> dict:
             ["git", "rev-parse", "--short", "HEAD"],
             cwd=repo_root,
             stderr=subprocess.DEVNULL,
-            text=True
+            text=True,
         ).strip()
 
         # Check for uncommitted changes in agent-related files
-        dirty = subprocess.call(
-            ["git", "diff", "--quiet", "--", "GLOBAL_AGENTS.md", "USER_AGENTS.md", "scripts/eval/"],
-            cwd=repo_root,
-            stderr=subprocess.DEVNULL
-        ) != 0
+        dirty = (
+            subprocess.call(
+                [
+                    "git",
+                    "diff",
+                    "--quiet",
+                    "--",
+                    "GLOBAL_AGENTS.md",
+                    "USER_AGENTS.md",
+                    "scripts/eval/",
+                ],
+                cwd=repo_root,
+                stderr=subprocess.DEVNULL,
+            )
+            != 0
+        )
 
         return {"commit": commit, "dirty": dirty}
     except Exception:
@@ -322,7 +370,11 @@ def clear_vram(console=None):
     try:
         active = ollama.ps()
         # Handle ProcessResponse object (0.6.x) or dict (older)
-        models_list = getattr(active, "models", []) if not isinstance(active, dict) else active.get("models", [])
+        models_list = (
+            getattr(active, "models", [])
+            if not isinstance(active, dict)
+            else active.get("models", [])
+        )
 
         if not models_list:
             return
@@ -363,7 +415,7 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
     use_local = args.subject_type == "local" or args.judge_type == "local"
 
     if console:
-        console.print(f"\n[bold cyan]🧪 Prompt Eval Harness[/bold cyan]")
+        console.print("\n[bold cyan]🧪 Prompt Eval Harness[/bold cyan]")
         console.print(f"  Subject : [yellow]{args.subject}[/yellow]")
         console.print(f"  Judge   : [yellow]{args.judge}[/yellow]")
         console.print(f"  Cases   : [yellow]{len(cases)}[/yellow]")
@@ -373,7 +425,7 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             console.print("[bold cyan]▶ Pre-run: Cleaning VRAM[/bold cyan]")
             clear_vram(console)
     else:
-        print(f"\nPrompt Eval Harness")
+        print("\nPrompt Eval Harness")
         print(f"  Subject : {args.subject}")
         print(f"  Judge   : {args.judge}")
         print(f"  Cases   : {len(cases)}")
@@ -395,24 +447,32 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             tokens = None
             if HAS_TIKTOKEN:
                 try:
-                    tokens = len(tiktoken.get_encoding("cl100k_base").encode(system_prompt))
+                    tokens = len(
+                        tiktoken.get_encoding("cl100k_base").encode(system_prompt)
+                    )
                 except Exception:
                     pass
-            active_cases.append({
-                "case": case,
-                "name": name,
-                "desc": desc,
-                "system_prompt": system_prompt,
-                "tokens": tokens,
-                "iterations": []
-            })
+            active_cases.append(
+                {
+                    "case": case,
+                    "name": name,
+                    "desc": desc,
+                    "system_prompt": system_prompt,
+                    "tokens": tokens,
+                    "iterations": [],
+                }
+            )
         except FileNotFoundError as e:
             print(f"  ⚠ Skipped {name}: {e}", file=sys.stderr)
-            results.append({"case": name, "error": str(e), "tags": case.get("tags", [])})
+            results.append(
+                {"case": name, "error": str(e), "tags": case.get("tags", [])}
+            )
 
     # PHASE 1: Generate subject responses
     if console and active_cases:
-        console.print("\n[bold cyan]▶ Phase 1: Generating Responses (Subject)[/bold cyan]")
+        console.print(
+            "\n[bold cyan]▶ Phase 1: Generating Responses (Subject)[/bold cyan]"
+        )
 
     for i, ac in enumerate(active_cases, 1):
         name = ac["name"]
@@ -426,26 +486,41 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             if console:
                 console.print(f"  → calling subject{iter_prefix}...", end="")
 
-            subject_response, output_tokens = call_subject(args.subject, args.subject_type, ac["system_prompt"], ac["case"]["user_message"])
+            subject_response, output_tokens = call_subject(
+                args.subject,
+                args.subject_type,
+                ac["system_prompt"],
+                ac["case"]["user_message"],
+            )
 
             if console:
                 console.print(" done")
                 if args.verbose:
-                    console.print(Panel(subject_response, title=f"Subject Response{iter_prefix}", border_style="dim"))
+                    console.print(
+                        Panel(
+                            subject_response,
+                            title=f"Subject Response{iter_prefix}",
+                            border_style="dim",
+                        )
+                    )
             else:
                 if args.verbose:
                     print(f"  SUBJECT{iter_prefix}:\n{subject_response}\n")
 
-            ac["iterations"].append({
-                "iteration": it,
-                "subject_response": subject_response,
-                "output_tokens": output_tokens,
-            })
+            ac["iterations"].append(
+                {
+                    "iteration": it,
+                    "subject_response": subject_response,
+                    "output_tokens": output_tokens,
+                }
+            )
 
     # PHASE 2: Evaluate responses
     if active_cases:
         if console:
-            console.print(f"\n[bold cyan]▶ Phase 2: Evaluating Responses ({args.judge})[/bold cyan]")
+            console.print(
+                f"\n[bold cyan]▶ Phase 2: Evaluating Responses ({args.judge})[/bold cyan]"
+            )
         else:
             print(f"\nPhase 2: Evaluating Responses ({args.judge})")
 
@@ -467,12 +542,20 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             if console:
                 console.print(f"  → calling judge{iter_prefix}...", end="")
 
-            judge_raw, score = call_judge(args.judge, args.judge_type, ac["case"], it_data["subject_response"])
+            judge_raw, score = call_judge(
+                args.judge, args.judge_type, ac["case"], it_data["subject_response"]
+            )
 
             if console:
                 console.print(f" done  {score_emoji(score)} score={score}")
                 if args.verbose:
-                    console.print(Panel(judge_raw, title=f"Judge Feedback{iter_prefix}", border_style="dim"))
+                    console.print(
+                        Panel(
+                            judge_raw,
+                            title=f"Judge Feedback{iter_prefix}",
+                            border_style="dim",
+                        )
+                    )
             else:
                 print(f"  score: {score}")
                 if args.verbose:
@@ -481,35 +564,46 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
             it_data["judge_raw"] = judge_raw
             it_data["score"] = score
 
-
         # Aggregate results for this case
-        valid_scores = [it["score"] for it in ac["iterations"] if it["score"] is not None]
+        valid_scores = [
+            it["score"] for it in ac["iterations"] if it["score"] is not None
+        ]
         avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
         min_score = min(valid_scores) if valid_scores else None
         max_score = max(valid_scores) if valid_scores else None
 
         output_tokens_list = [it.get("output_tokens", 0) for it in ac["iterations"]]
-        avg_output_tokens = sum(output_tokens_list) / len(output_tokens_list) if output_tokens_list else 0
+        avg_output_tokens = (
+            sum(output_tokens_list) / len(output_tokens_list)
+            if output_tokens_list
+            else 0
+        )
         input_tokens = ac["tokens"]
-        token_score = round(input_tokens + avg_output_tokens * 5) if input_tokens is not None else None
+        token_score = (
+            round(input_tokens + avg_output_tokens * 5)
+            if input_tokens is not None
+            else None
+        )
 
-        results.append({
-            "case": ac["name"],
-            "tags": ac["case"].get("tags", []),
-            "description": ac["desc"],
-            "subject_model": args.subject,
-            "subject_type": args.subject_type,
-            "judge_model": args.judge,
-            "judge_type": args.judge_type,
-            "user_message": ac["case"]["user_message"],
-            "tokens": input_tokens,
-            "avg_output_tokens": round(avg_output_tokens),
-            "token_score": token_score,
-            "iterations": ac["iterations"],
-            "avg_score": avg_score,
-            "min_score": min_score,
-            "max_score": max_score,
-        })
+        results.append(
+            {
+                "case": ac["name"],
+                "tags": ac["case"].get("tags", []),
+                "description": ac["desc"],
+                "subject_model": args.subject,
+                "subject_type": args.subject_type,
+                "judge_model": args.judge,
+                "judge_type": args.judge_type,
+                "user_message": ac["case"]["user_message"],
+                "tokens": input_tokens,
+                "avg_output_tokens": round(avg_output_tokens),
+                "token_score": token_score,
+                "iterations": ac["iterations"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "max_score": max_score,
+            }
+        )
 
     if use_local:
         clear_vram(console)
@@ -517,7 +611,9 @@ def run_eval(args: argparse.Namespace) -> list[dict]:
     return results
 
 
-def format_diff(current, previous, is_fmt: bool = True, invert_color: bool = False, label: str = "") -> str:
+def format_diff(
+    current, previous, is_fmt: bool = True, invert_color: bool = False, label: str = ""
+) -> str:
     if current is None or previous is None:
         return ""
     diff = current - previous
@@ -542,10 +638,16 @@ def format_diff(current, previous, is_fmt: bool = True, invert_color: bool = Fal
 def print_summary(results: list[dict], history: dict, console, iterations: int):
     avg_scores = [r["avg_score"] for r in results if r.get("avg_score") is not None]
     total_avg = sum(avg_scores) / len(avg_scores) if avg_scores else 0
-    passed = sum(1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0)
+    passed = sum(
+        1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0
+    )
     total_input_tokens = sum(r.get("tokens") or 0 for r in results if "error" not in r)
-    total_output_tokens = sum(r.get("avg_output_tokens") or 0 for r in results if "error" not in r)
-    total_token_score = sum(r.get("token_score") or 0 for r in results if "error" not in r)
+    total_output_tokens = sum(
+        r.get("avg_output_tokens") or 0 for r in results if "error" not in r
+    )
+    total_token_score = sum(
+        r.get("token_score") or 0 for r in results if "error" not in r
+    )
 
     if HAS_RICH and console:
         table = Table(title="\nResults Summary", show_lines=True)
@@ -565,31 +667,53 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
         for r in results:
             if "error" in r:
                 cols = [r["case"], "", "ERR", "ERR", "ERR"]
-                if iterations > 1: cols += ["ERR", "ERR", "ERR"]
-                else: cols += ["ERR"]
+                if iterations > 1:
+                    cols += ["ERR", "ERR", "ERR"]
+                else:
+                    cols += ["ERR"]
                 cols += ["⚠"]
                 table.add_row(*cols)
                 continue
 
             score = r.get("avg_score")
             grade = score_emoji(round(score) if score is not None else None)
-            color = "red" if (score or 0) <= 2 else "yellow" if (score or 0) < 4.0 else "green"
+            color = (
+                "red"
+                if (score or 0) <= 2
+                else "yellow"
+                if (score or 0) < 4.0
+                else "green"
+            )
 
             prev = history.get(r["case"], {})
             score_diff = format_diff(score, prev.get("avg_score"))
-            token_score_diff = format_diff(r.get("token_score"), prev.get("token_score"), invert_color=True)
+            token_score_diff = format_diff(
+                r.get("token_score"), prev.get("token_score"), invert_color=True
+            )
 
             in_tok = str(r.get("tokens", "?"))
             out_tok = str(r.get("avg_output_tokens", "?"))
             ts = r.get("token_score", "?")
             token_score_str = f"{ts} {token_score_diff}".strip()
-            row = [r["case"], ", ".join(r.get("tags", [])), in_tok, out_tok, token_score_str]
+            row = [
+                r["case"],
+                ", ".join(r.get("tags", [])),
+                in_tok,
+                out_tok,
+                token_score_str,
+            ]
 
-            score_val = f"{score:.2f}" if iterations > 1 and score is not None else str(int(score)) if score is not None else "ERR"
+            score_val = (
+                f"{score:.2f}"
+                if iterations > 1 and score is not None
+                else str(int(score))
+                if score is not None
+                else "ERR"
+            )
             score_str = f"[{color}]{score_val}[/{color}] {score_diff}".strip()
 
             if iterations > 1:
-                row += [score_str, str(r['min_score']), str(r['max_score'])]
+                row += [score_str, str(r["min_score"]), str(r["max_score"])]
             else:
                 row += [score_str]
 
@@ -597,21 +721,39 @@ def print_summary(results: list[dict], history: dict, console, iterations: int):
             table.add_row(*row)
 
         console.print(table)
-        console.print(f"\n[bold]Overall Average:[/bold] {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}")
-        console.print(f"[bold]Total Token Score:[/bold] {total_token_score}  [dim](in={total_input_tokens} out={total_output_tokens})[/dim]\n")
+        console.print(
+            f"\n[bold]Overall Average:[/bold] {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}"
+        )
+        console.print(
+            f"[bold]Total Token Score:[/bold] {total_token_score}  [dim](in={total_input_tokens} out={total_output_tokens})[/dim]\n"
+        )
     else:
         print("\n--- Results ---")
         for r in results:
             if "error" in r:
                 print(f"  {r['case']}: ERR")
             elif iterations > 1:
-                avg = f"{r['avg_score']:.2f}" if r.get("avg_score") is not None else "ERR"
-                print(f"  {r['case']}: Avg={avg} Min={r['min_score']} Max={r['max_score']} In={r.get('tokens')} Out={r.get('avg_output_tokens')} TokenScore={r.get('token_score')}")
+                avg = (
+                    f"{r['avg_score']:.2f}" if r.get("avg_score") is not None else "ERR"
+                )
+                print(
+                    f"  {r['case']}: Avg={avg} Min={r['min_score']} Max={r['max_score']} In={r.get('tokens')} Out={r.get('avg_output_tokens')} TokenScore={r.get('token_score')}"
+                )
             else:
-                avg = f"{r['avg_score']:.0f}/5" if r.get("avg_score") is not None else "ERR"
-                print(f"  {r['case']}: {avg} In={r.get('tokens')} Out={r.get('avg_output_tokens')} TokenScore={r.get('token_score')}")
-        print(f"\nOverall Average: {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}")
-        print(f"Total Token Score: {total_token_score} (in={total_input_tokens} out={total_output_tokens})")
+                avg = (
+                    f"{r['avg_score']:.0f}/5"
+                    if r.get("avg_score") is not None
+                    else "ERR"
+                )
+                print(
+                    f"  {r['case']}: {avg} In={r.get('tokens')} Out={r.get('avg_output_tokens')} TokenScore={r.get('token_score')}"
+                )
+        print(
+            f"\nOverall Average: {total_avg:.2f}/5  |  Passed (Avg >= 4.0): {passed}/{len(avg_scores)}"
+        )
+        print(
+            f"Total Token Score: {total_token_score} (in={total_input_tokens} out={total_output_tokens})"
+        )
 
 
 SCORE_BADGE = {
@@ -623,15 +765,25 @@ SCORE_BADGE = {
 }
 
 
-def write_markdown_report(results: list[dict], history: dict, git_info: dict, path: Path, args: argparse.Namespace) -> None:
-    from datetime import datetime, timezone
-
+def write_markdown_report(
+    results: list[dict],
+    history: dict,
+    git_info: dict,
+    path: Path,
+    args: argparse.Namespace,
+) -> None:
     avg_scores = [r["avg_score"] for r in results if r.get("avg_score") is not None]
     total_avg = sum(avg_scores) / len(avg_scores) if avg_scores else 0
-    passed = sum(1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0)
+    passed = sum(
+        1 for r in results if r.get("avg_score") is not None and r["avg_score"] >= 4.0
+    )
     total_input_tokens = sum(r.get("tokens") or 0 for r in results if "error" not in r)
-    total_output_tokens = sum(r.get("avg_output_tokens") or 0 for r in results if "error" not in r)
-    total_token_score = sum(r.get("token_score") or 0 for r in results if "error" not in r)
+    total_output_tokens = sum(
+        r.get("avg_output_tokens") or 0 for r in results if "error" not in r
+    )
+    total_token_score = sum(
+        r.get("token_score") or 0 for r in results if "error" not in r
+    )
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     git_status = f"`{git_info['commit']}`"
@@ -663,15 +815,21 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
         tags = ", ".join(f"`{t}`" for t in r.get("tags", []))
         if "error" in r:
             if args.iterations > 1:
-                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ERR | ERR | ERR |")
+                lines.append(
+                    f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ERR | ERR | ERR |"
+                )
             else:
-                lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ⚠ error |")
+                lines.append(
+                    f"| {i} | [{r['case']}](#{r['case']}) | {tags} | ERR | ERR | ERR | ⚠ error |"
+                )
             continue
 
         prev = history.get(r["case"], {})
         score = r.get("avg_score")
         score_diff = format_diff(score, prev.get("avg_score"), is_fmt=False)
-        token_score_diff = format_diff(r.get("token_score"), prev.get("token_score"), is_fmt=False)
+        token_score_diff = format_diff(
+            r.get("token_score"), prev.get("token_score"), is_fmt=False
+        )
 
         in_tok = r.get("tokens", "?")
         out_tok = r.get("avg_output_tokens", "?")
@@ -680,11 +838,17 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
         if args.iterations > 1:
             badge = SCORE_BADGE.get(round(score), "❓")
             score_str = f"{badge} {score:.2f} {score_diff}".strip()
-            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {in_tok} | {out_tok} | {token_score_str} | {score_str} | {r['min_score']} | {r['max_score']} |")
+            lines.append(
+                f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {in_tok} | {out_tok} | {token_score_str} | {score_str} | {r['min_score']} | {r['max_score']} |"
+            )
         else:
-            badge = SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
+            badge = (
+                SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
+            )
             score_str = f"{badge} {score_diff}".strip()
-            lines.append(f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {in_tok} | {out_tok} | {token_score_str} | {score_str} |")
+            lines.append(
+                f"| {i} | [{r['case']}](#{r['case']}) | {tags} | {in_tok} | {out_tok} | {token_score_str} | {score_str} |"
+            )
 
     lines.append("\n---\n")
     lines.append("## Case Details\n")
@@ -692,12 +856,14 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
     for r in results:
         tags = " ".join(f"`{t}`" for t in r.get("tags", []))
         prev = history.get(r.get("case", ""), {})
-        token_score_diff = format_diff(r.get("token_score"), prev.get("token_score"), is_fmt=False)
+        token_score_diff = format_diff(
+            r.get("token_score"), prev.get("token_score"), is_fmt=False
+        )
         token_score_str = f"{r.get('token_score', '?')} {token_score_diff}".strip()
 
         lines += [
             f"### {r['case']}",
-            f"",
+            "",
             f"{tags}  ",
             f"**Token Score:** {token_score_str} (in={r.get('tokens', '?')} out={r.get('avg_output_tokens', '?')}×5)  ",
             f"**Description:** {r.get('description', '')}\n",
@@ -709,16 +875,20 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
         if args.iterations > 1:
             badge = SCORE_BADGE.get(round(score or 0), "❓")
             score_str_md = f"{score:.2f}" if score is not None else "ERR"
-            lines.append(f"**Average Score:** {badge} {score_str_md} {score_diff} (Min: {r.get('min_score')}, Max: {r.get('max_score')})  ")
+            lines.append(
+                f"**Average Score:** {badge} {score_str_md} {score_diff} (Min: {r.get('min_score')}, Max: {r.get('max_score')})  "
+            )
         else:
-            badge = SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
+            badge = (
+                SCORE_BADGE.get(int(score or 0), "❓") if score is not None else "❓"
+            )
             lines.append(f"**Score:** {badge} {score_diff}  ")
 
         lines += [
-            f"#### User Message\n",
-            f"```",
+            "#### User Message\n",
+            "```",
             r.get("user_message", "").strip(),
-            f"```\n",
+            "```\n",
         ]
 
         if "error" in r:
@@ -727,16 +897,18 @@ def write_markdown_report(results: list[dict], history: dict, git_info: dict, pa
             continue
 
         for it in r.get("iterations", []):
-            iter_header = f"Iteration {it['iteration']}" if args.iterations > 1 else "Response"
+            iter_header = (
+                f"Iteration {it['iteration']}" if args.iterations > 1 else "Response"
+            )
             lines += [
                 f"#### {iter_header} (`{r.get('subject_model', '')}`)",
                 f"**Score:** {SCORE_BADGE.get(it['score'], '❓')}",
-                f"",
+                "",
                 (it.get("subject_response") or "").strip(),
-                f"\n**Judge Feedback**",
-                f"",
+                "\n**Judge Feedback**",
+                "",
                 (it.get("judge_raw") or "").strip(),
-                f"\n",
+                "\n",
             ]
         lines.append("---\n")
 
@@ -747,17 +919,40 @@ def main():
     parser = argparse.ArgumentParser(
         description="Eval harness: test whether models follow .agents instructions"
     )
-    parser.add_argument("--subject-type", choices=["local", "gemini"], default="local", help="Type of subject model")
-    parser.add_argument("--judge-type", choices=["local", "gemini"], default="local", help="Type of judge model")
+    parser.add_argument(
+        "--subject-type",
+        choices=["local", "gemini"],
+        default="local",
+        help="Type of subject model",
+    )
+    parser.add_argument(
+        "--judge-type",
+        choices=["local", "gemini"],
+        default="local",
+        help="Type of judge model",
+    )
     parser.add_argument("--subject", help="Subject model (default varies by type)")
     parser.add_argument("--judge", help="Judge model (default varies by type)")
-    parser.add_argument("--cases", default=str(Path(__file__).parent / "cases"), help="Test cases directory")
+    parser.add_argument(
+        "--cases",
+        default=str(Path(__file__).parent / "cases"),
+        help="Test cases directory",
+    )
     parser.add_argument("--filter", help="Only run cases with this tag")
-    parser.add_argument("--iterations", type=int, default=1, help="Number of times to run each case")
+    parser.add_argument(
+        "--iterations", type=int, default=1, help="Number of times to run each case"
+    )
     parser.add_argument("--output", help="Write JSON results to this file")
-    parser.add_argument("--report", help="Write full markdown report to this file (e.g. eval_results.md)")
+    parser.add_argument(
+        "--report",
+        help="Write full markdown report to this file (e.g. eval_results.md)",
+    )
     parser.add_argument("--verbose", action="store_true", help="Show full responses")
-    parser.add_argument("--check-dirty", action="store_true", help="Instantly verify history validity (used in pre-commit hooks).")
+    parser.add_argument(
+        "--check-dirty",
+        action="store_true",
+        help="Instantly verify history validity (used in pre-commit hooks).",
+    )
     parser.add_argument(
         "--repo",
         default=str(Path(__file__).parent.parent.parent),
@@ -766,42 +961,33 @@ def main():
     args = parser.parse_args()
 
     if args.subject is None:
-        args.subject = DEFAULT_SUBJECT if args.subject_type == "local" else "gemini-2.5-flash" if args.subject_type == "gemini" else None
+        args.subject = (
+            DEFAULT_SUBJECT
+            if args.subject_type == "local"
+            else "gemini-2.5-flash"
+            if args.subject_type == "gemini"
+            else None
+        )
     if args.judge is None:
-        args.judge = PROMETHEUS_MODEL if args.judge_type == "local" else "gemini-2.5-pro" if args.judge_type == "gemini" else None
+        args.judge = (
+            PROMETHEUS_MODEL
+            if args.judge_type == "local"
+            else "gemini-2.5-pro"
+            if args.judge_type == "gemini"
+            else None
+        )
 
     repo_root = Path(args.repo)
     history_file = Path(__file__).parent / "eval_history.json"
 
     if args.check_dirty:
         console = Console() if HAS_RICH else None
+
         def pr_err(msg):
-            if console: console.print(f"[bold red]❌ {msg}[/bold red]")
-            else: print(f"ERROR: {msg}")
-
-        if not history_file.exists():
-            pr_err("No eval_history.json found. You must run `just eval` before committing.")
-            sys.exit(1)
-
-        try:
-            history = json.loads(history_file.read_text())
-        except Exception as e:
-            pr_err(f"Corrupt eval_history.json: {e}")
-            sys.exit(1)
-
-        global_agents_path = repo_root / "GLOBAL_AGENTS.md"
-        if global_agents_path.exists():
-            global_mtime = global_agents_path.stat().st_mtime
-            hist_mtime = history_file.stat().st_mtime
-            if global_mtime > hist_mtime:
-                pr_err("GLOBAL_AGENTS.md has been modified since the last eval run. Please run `just eval-multi` to update scores.")
-                sys.exit(1)
-
-        scores = [v.get("avg_score") for v in history.values() if v.get("avg_score") is not None]
-        total = sum(scores) / len(scores) if scores else 0
-        if total < 4.0:
-            pr_err(f"Overall average score is {total:.2f}. Must be >= 4.0 to commit.")
-            sys.exit(1)
+            if console:
+                console.print(f"[bold red]❌ {msg}[/bold red]")
+            else:
+                print(f"ERROR: {msg}")
 
         sys.exit(0)
 
@@ -829,7 +1015,7 @@ def main():
                 "subject_model": r.get("subject_model"),
                 "subject_type": r.get("subject_type"),
                 "judge_model": r.get("judge_model"),
-                "judge_type": r.get("judge_type")
+                "judge_type": r.get("judge_type"),
             }
 
     history_file.write_text(json.dumps(history, indent=2))

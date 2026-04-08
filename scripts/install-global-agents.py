@@ -26,6 +26,7 @@ from user_agents_merge import merge_user_agents
 # Paths
 # ---------------------------------------------------------------------------
 
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
@@ -57,6 +58,7 @@ def gemini_config_dir() -> Path:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def vlog(verbose: bool, msg: str) -> None:
     if verbose:
@@ -118,6 +120,7 @@ def copy_skills_to_user_dir(dest_skills_root: Path, *, dry_run: bool) -> int:
 # ---------------------------------------------------------------------------
 # Detection
 # ---------------------------------------------------------------------------
+
 
 def detect_claude(verbose: bool) -> bool:
     p = which("claude")
@@ -188,6 +191,7 @@ def detect_cursor(verbose: bool) -> bool:
 # ---------------------------------------------------------------------------
 # Context deployment
 # ---------------------------------------------------------------------------
+
 
 def write_local_merged_global(src: Path, *, dry_run: bool) -> None:
     """Gitignored snapshot of GLOBAL_AGENTS + USER_AGENTS for @-mentions in the repo."""
@@ -271,7 +275,9 @@ def write_cursor_mdc(
 ) -> None:
     dest = Path.home() / ".cursor/rules/global-agents.mdc"
     if dry_run:
-        print(f"[dry-run] write {dest} (frontmatter + GLOBAL_AGENTS.md, strip_hooks={strip_hooks})")
+        print(
+            f"[dry-run] write {dest} (frontmatter + GLOBAL_AGENTS.md, strip_hooks={strip_hooks})"
+        )
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     raw = global_path.read_text(encoding="utf-8")
@@ -297,6 +303,7 @@ alwaysApply: true
 # ---------------------------------------------------------------------------
 # Hook deployment
 # ---------------------------------------------------------------------------
+
 
 def deploy_hook_scripts(*, dry_run: bool) -> Path:
     """Copy hook scripts to ~/.agents-hooks/ and return the deploy dir."""
@@ -422,6 +429,7 @@ def install_hooks_cursor(hooks_dir: Path, *, dry_run: bool) -> None:
 # Commands
 # ---------------------------------------------------------------------------
 
+
 def cmd_discover(verbose: bool) -> int:
     print("Discovery (signals only — tools need not be running):\n")
     n_skills = repo_skill_count()
@@ -433,7 +441,9 @@ def cmd_discover(verbose: bool) -> int:
     any_yes = False
     if detect_claude(verbose):
         print(f"  claude-code   yes   context -> {Path.home() / '.claude/CLAUDE.md'}")
-        print(f"                      hooks   -> {Path.home() / '.claude/settings.json'} (PreToolUse)")
+        print(
+            f"                      hooks   -> {Path.home() / '.claude/settings.json'} (PreToolUse)"
+        )
         print(
             f"                      skills  -> {Path.home() / '.claude' / 'skills'}/ "
             f"({skills_repo}; copy on install)"
@@ -447,15 +457,23 @@ def cmd_discover(verbose: bool) -> int:
 
     if gemini_ok:
         print(f"  gemini-cli    yes   context -> {gemini_config_dir() / 'GEMINI.md'}")
-        print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool)")
-        print(f"                      skills  -> {Path.home() / '.agents' / 'skills'}/ ({gemini_skills_note})")
+        print(
+            f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool)"
+        )
+        print(
+            f"                      skills  -> {Path.home() / '.agents' / 'skills'}/ ({gemini_skills_note})"
+        )
         any_yes = True
     else:
         print("  gemini-cli    no    (no gemini/gemini-cli in PATH, no config dir)")
 
     if antigravity_ok:
-        print(f"  antigravity   yes   context -> {gemini_config_dir() / 'GEMINI.md'} (shared with gemini-cli)")
-        print(f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool, shared)")
+        print(
+            f"  antigravity   yes   context -> {gemini_config_dir() / 'GEMINI.md'} (shared with gemini-cli)"
+        )
+        print(
+            f"                      hooks   -> {gemini_config_dir() / 'settings.json'} (BeforeTool, shared)"
+        )
         print(
             f"                      skills  -> {Path.home() / '.gemini' / 'antigravity' / 'skills'}/ "
             f"({skills_repo}; copy on install)"
@@ -478,7 +496,9 @@ def cmd_discover(verbose: bool) -> int:
             f"  cursor        yes   context -> {Path.home() / '.cursor/rules/global-agents.mdc'} "
             "(best-effort; see note)"
         )
-        print(f"                      hooks   -> {Path.home() / '.cursor/hooks.json'} (preToolUse)")
+        print(
+            f"                      hooks   -> {Path.home() / '.cursor/hooks.json'} (preToolUse)"
+        )
         print(
             f"                      skills  -> {Path.home() / '.cursor' / 'skills'}/ "
             f"({skills_repo}; copy on install)"
@@ -531,7 +551,6 @@ def cmd_install(
 
     installed = False
     did_claude = False
-    did_gemini = False
     did_cursor = False
     did_antigravity = False
 
@@ -539,7 +558,9 @@ def cmd_install(
         if detect_claude(verbose) or forcing_targets(targets):
             if not detect_claude(verbose) and forcing_targets(targets):
                 warn = Path.home() / ".claude/CLAUDE.md"
-                print(f"Warning: claude-code not detected; writing {warn} anyway (--targets).")
+                print(
+                    f"Warning: claude-code not detected; writing {warn} anyway (--targets)."
+                )
             if with_hooks:
                 deploy_global_agents_markdown(
                     src,
@@ -575,7 +596,9 @@ def cmd_install(
                     f"Warning: gemini-cli / antigravity not detected; writing {dest} anyway (--targets)."
                 )
 
-            is_antigravity_forced = forcing_targets(targets) and targets and "antigravity" in targets
+            is_antigravity_forced = (
+                forcing_targets(targets) and targets and "antigravity" in targets
+            )
             needs_markdown_hooks = antigravity_detected or is_antigravity_forced
             strip_markdown = with_hooks and not needs_markdown_hooks
 
@@ -587,7 +610,9 @@ def cmd_install(
                 dry_run=dry_run,
             )
 
-            is_gemini_forced = forcing_targets(targets) and targets and "gemini" in targets
+            is_gemini_forced = (
+                forcing_targets(targets) and targets and "gemini" in targets
+            )
             if with_hooks and (gemini_detected or is_gemini_forced):
                 install_hooks_gemini(hooks_dir, dry_run=dry_run)
 
@@ -595,12 +620,13 @@ def cmd_install(
                 did_antigravity = True
 
             installed = True
-            did_gemini = True
 
     if target_wanted("cursor", targets):
         if detect_cursor(verbose) or forcing_targets(targets):
             if not detect_cursor(verbose) and forcing_targets(targets):
-                print("Warning: cursor dirs not detected; writing ~/.cursor/rules/global-agents.mdc anyway (--targets).")
+                print(
+                    "Warning: cursor dirs not detected; writing ~/.cursor/rules/global-agents.mdc anyway (--targets)."
+                )
             write_cursor_mdc(src, strip_hooks=with_hooks, dry_run=dry_run)
             if with_hooks:
                 install_hooks_cursor(hooks_dir, dry_run=dry_run)
@@ -615,16 +641,24 @@ def cmd_install(
             )
         else:
             if did_claude:
-                copy_skills_to_user_dir(Path.home() / ".claude" / "skills", dry_run=dry_run)
+                copy_skills_to_user_dir(
+                    Path.home() / ".claude" / "skills", dry_run=dry_run
+                )
             if did_cursor:
-                copy_skills_to_user_dir(Path.home() / ".cursor" / "skills", dry_run=dry_run)
+                copy_skills_to_user_dir(
+                    Path.home() / ".cursor" / "skills", dry_run=dry_run
+                )
             if did_antigravity:
-                copy_skills_to_user_dir(Path.home() / ".gemini" / "antigravity" / "skills", dry_run=dry_run)
+                copy_skills_to_user_dir(
+                    Path.home() / ".gemini" / "antigravity" / "skills", dry_run=dry_run
+                )
 
     if not installed:
         sp = script_path()
         print(f"Nothing installed. Try: {sp} discover")
-        print(f"Force paths with: {sp} install --targets claude,gemini,antigravity,cursor")
+        print(
+            f"Force paths with: {sp} install --targets claude,gemini,antigravity,cursor"
+        )
         return 1
     write_local_merged_global(src, dry_run=dry_run)
     return 0
@@ -633,6 +667,7 @@ def cmd_install(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def parse_targets(s: str | None) -> list[str] | None:
     if not s or not s.strip():
@@ -646,7 +681,9 @@ def main() -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_disc = sub.add_parser("discover", help="List detected agents, install paths, and hook targets")
+    p_disc = sub.add_parser(
+        "discover", help="List detected agents, install paths, and hook targets"
+    )
     p_disc.add_argument("--verbose", "-v", action="store_true")
 
     p_ins = sub.add_parser(

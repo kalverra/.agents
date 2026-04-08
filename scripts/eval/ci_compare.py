@@ -103,9 +103,11 @@ def main():
     out_path.write_text("\n".join(lines))
 
     # Determine exit status
-    if pr_total < 4.0:
-        print("Score below 4.0 threshold.")
+    if pr_total < main_total:
+        print("Quality regression detected! Score dropped below main branch.")
         sys.exit(1)
+    elif pr_total < 4.0:
+        print("Score below 4.0 threshold, but no regression from main. Allowing.")
 
     print("Evaluation checks passed.")
     sys.exit(0)

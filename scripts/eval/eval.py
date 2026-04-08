@@ -989,6 +989,38 @@ def main():
             else:
                 print(f"ERROR: {msg}")
 
+        if not history_file.exists():
+            pr_err(
+                "No eval_history.json found. You must run `just eval` before committing."
+            )
+            sys.exit(1)
+
+        try:
+            history = json.loads(history_file.read_text())
+        except Exception as e:
+            pr_err(f"Corrupt eval_history.json: {e}")
+            sys.exit(1)
+
+        global_agents_path = repo_root / "GLOBAL_AGENTS.md"
+        if global_agents_path.exists():
+            global_mtime = global_agents_path.stat().st_mtime
+            hist_mtime = history_file.stat().st_mtime
+            if global_mtime > hist_mtime:
+                pr_err(
+                    "GLOBAL_AGENTS.md has been modified since the last eval run. Please run `just eval-multi` to update scores."
+                )
+                sys.exit(1)
+
+        scores = [
+            v.get("avg_score")
+            for v in history.values()
+            if v.get("avg_score") is not None
+        ]
+        total = sum(scores) / len(scores) if scores else 0
+        if total < 4.0:
+            pr_err(f"Overall average score is {total:.2f}. Must be >= 4.0 to commit.")
+            sys.exit(1)
+
         sys.exit(0)
 
     git_info = get_git_info(repo_root)

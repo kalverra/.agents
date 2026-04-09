@@ -35,7 +35,8 @@ case "$COMMAND" in
 esac
 
 # https://github.com/rtk-ai/rtk/issues/682
-REWRITTEN="rtk $COMMAND 2> >(grep -v 'No hook installed' >&2)"
+# Wrap entire expression so stderr merge + sed filter covers all subcommands
+REWRITTEN="{ rtk $COMMAND; } 2>&1 | sed '/No hook installed/d'"
 
 case "${AGENT_TYPE:-}" in
   claude)

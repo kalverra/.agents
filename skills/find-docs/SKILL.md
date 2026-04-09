@@ -3,7 +3,7 @@ name: find-docs
 description: Retrieve up-to-date docs via ctx7.
 ---
 
-Use ctx7 for accurate documentation. Stop if missing.
+Use ctx7 for accurate documentation. Never answer from memory or search the web directly. You must correctly invoke ctx7 docs <path> <question> as the primary approach with no memory-based answer. Stop if missing.
 
 <workflow>
 1. Resolve ID: ctx7 library "<name>" "<intent>". Select best match.

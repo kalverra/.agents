@@ -10,7 +10,7 @@
     "judge_type": "gemini"
   },
   "rtk-prefix-shell-command": {
-    "avg_score": 1.0,
+    "avg_score": 5.0,
     "tokens": 353,
     "avg_output_tokens": 19,
     "token_score": 448,
@@ -20,7 +20,7 @@
     "judge_type": "gemini"
   },
   "session-goal-ask": {
-    "avg_score": 4.0,
+    "avg_score": 5.0,
     "tokens": 353,
     "avg_output_tokens": 29,
     "token_score": 498,
@@ -40,7 +40,7 @@
     "judge_type": "gemini"
   },
   "tools-find-docs": {
-    "avg_score": 1.0,
+    "avg_score": 5.0,
     "tokens": 491,
     "avg_output_tokens": 408,
     "token_score": 2531,
@@ -50,7 +50,7 @@
     "judge_type": "gemini"
   },
   "tools-scrapling-web": {
-    "avg_score": 4.0,
+    "avg_score": 5.0,
     "tokens": 353,
     "avg_output_tokens": 837,
     "token_score": 4538,

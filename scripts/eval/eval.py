@@ -64,12 +64,6 @@ try:
 except ImportError:
     HAS_GENAI = False
 
-_scripts_dir = Path(__file__).resolve().parent.parent
-if str(_scripts_dir) not in sys.path:
-    sys.path.insert(0, str(_scripts_dir))
-from user_agents_merge import merge_user_agents  # noqa: E402
-
-
 PROMETHEUS_MODEL = "hf.co/divish/M-Prometheus-7B-Q4_K_M-GGUF:latest"
 DEFAULT_SUBJECT = "llama3.1:8b"
 
@@ -102,8 +96,29 @@ Score 5: {score_5}
 
 
 def resolve_placeholders(content: str, repo_root: Path) -> str:
-    """Substitute USER_AGENTS.md into template text (same rules as install)."""
-    return merge_user_agents(content, repo_root / "USER_AGENTS.md")
+    """Substitute USER_AGENTS.md into template text."""
+    user_src = repo_root / "USER_AGENTS.md"
+    if not user_src.is_file():
+        return content
+
+    user_content = user_src.read_text(encoding="utf-8").strip()
+    if not user_content:
+        return content
+
+    USER_AGENTS_PLACEHOLDER = "<!-- Instructions from USER_AGENTS.md are appended here during install -->"
+    if USER_AGENTS_PLACEHOLDER in content:
+        return content.replace(USER_AGENTS_PLACEHOLDER, user_content)
+
+    m = re.search(r"(<user>).*?(</user>)", content, re.DOTALL)
+    if m:
+        return re.sub(
+            r"(<user>).*?(</user>)",
+            lambda match: match.group(1) + "\n" + user_content + "\n" + match.group(2),
+            content,
+            flags=re.DOTALL
+        )
+
+    return content.rstrip() + "\n\n" + user_content + "\n"
 
 
 def load_file(path: Path, repo_root: Path) -> str:

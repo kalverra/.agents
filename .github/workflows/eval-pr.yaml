@@ -26,7 +26,8 @@ jobs:
 
       - name: Compare prompt evaluations
         run: |
-          python3 pr-repo/scripts/eval/ci_compare.py \
+          cd pr-repo/cmd/agents-cli && go build -o ../../../agents-cli . && cd ../../..
+          ./agents-cli ci-compare \
             main-repo/scripts/eval/eval_history.json \
             pr-repo/scripts/eval/eval_history.json \
             results.md

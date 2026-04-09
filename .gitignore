@@ -10,3 +10,5 @@ scripts/eval/eval_results.md
 .gemini/
 gha-creds-*.json
 .vscode/
+/agents-cli
+cmd/agents-cli/agents-cli

@@ -38,7 +38,9 @@ def main() -> int:
         )
         return 1
 
-    parser = argparse.ArgumentParser(description="Count LLM tokens in a file or string.")
+    parser = argparse.ArgumentParser(
+        description="Count LLM tokens in a file or string."
+    )
     parser.add_argument(
         "path",
         nargs="?",
@@ -46,7 +48,12 @@ def main() -> int:
         metavar="FILE",
         help="File to read (if omitted and no --string, read stdin)",
     )
-    parser.add_argument("-s", "--string", metavar="TEXT", help="Count tokens in this string instead of a file")
+    parser.add_argument(
+        "-s",
+        "--string",
+        metavar="TEXT",
+        help="Count tokens in this string instead of a file",
+    )
     enc_group = parser.add_mutually_exclusive_group()
     enc_group.add_argument(
         "--encoding",
@@ -89,7 +96,10 @@ def main() -> int:
             enc_name = f"model:{args.model} -> {enc.name}"
         except KeyError:
             print(f"Unknown model for tiktoken: {args.model}", file=sys.stderr)
-            print("Try --encoding with a known name (cl100k_base, o200k_base, …)", file=sys.stderr)
+            print(
+                "Try --encoding with a known name (cl100k_base, o200k_base, …)",
+                file=sys.stderr,
+            )
             return 1
     else:
         try:

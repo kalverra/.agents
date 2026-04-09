@@ -19,6 +19,17 @@ repos:
     rev: v1.7.11
     hooks:
       - id: actionlint
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+      - id: ruff-format
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.64.6
+    hooks:
+      - id: golangci-lint
+        entry: bash -c 'cd cmd/pr-review && golangci-lint run --fix'
   - repo: local
     hooks:
       - id: eval-regressions

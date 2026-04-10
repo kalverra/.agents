@@ -6,7 +6,7 @@ description: Fetch open GitHub PR review comments and propose fixes.
 Fetch and analyze open PR comments.
 
 <workflow>
-1. Run: ~/.agents/agents fetch-pr <repo_path>
+1. Run: ~/.agents/agents skills fetch-pr <repo_path>
 2. Analyze unresolved threads. Classify as fix or misunderstanding.
 3. Plan fixes with file, function, and change.
 4. Ask before implementation. Do not reply on GitHub or auto-commit.

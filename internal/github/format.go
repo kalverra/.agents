@@ -1,10 +1,11 @@
-package main
+package github
 
 import (
 	"fmt"
 	"strings"
 )
 
+// FormatPR renders a PR and its review activity as readable markdown.
 func FormatPR(pr *PR, includeResolved bool) string {
 	var b strings.Builder
 
@@ -120,7 +121,7 @@ func formatThread(b *strings.Builder, t ReviewThread) {
 }
 
 func writeQuoted(b *strings.Builder, body string) {
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		fmt.Fprintf(b, "> %s\n", line)
 	}
 }

@@ -7,6 +7,7 @@ on:
     paths:
       - "*.md"
       - "scripts/eval/**"
+      - "internal/eval/**"
       - ".github/workflows/eval-pr.yaml"
 
 jobs:
@@ -24,14 +25,20 @@ jobs:
           ref: "main"
           path: "main-repo"
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "pr-repo/go.mod"
+
       - name: Compare prompt evaluations
+        working-directory: pr-repo
         run: |
-          python3 pr-repo/scripts/eval/ci_compare.py \
-            main-repo/scripts/eval/eval_history.json \
-            pr-repo/scripts/eval/eval_history.json \
+          go run . eval-compare \
+            ../main-repo/scripts/eval/eval_history.json \
+            scripts/eval/eval_history.json \
             results.md
 
       - name: Post check results
         if: always()
         run: |
-          cat results.md >> $GITHUB_STEP_SUMMARY
+          cat pr-repo/results.md >> "$GITHUB_STEP_SUMMARY"

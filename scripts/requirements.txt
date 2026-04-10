@@ -1,6 +1,0 @@
-tiktoken>=0.5.0
-# eval harness
-ollama>=0.4.0
-google-genai>=0.3.0
-pyyaml>=6.0
-rich>=13.0

@@ -1,4 +1,5 @@
-package main
+// Package github provides GitHub GraphQL API types and fetch helpers.
+package github
 
 import (
 	"context"
@@ -8,6 +9,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// PR holds the fetched data for a GitHub pull request.
 type PR struct {
 	Number         int
 	Title          string
@@ -24,6 +26,7 @@ type PR struct {
 	Comments       []Comment
 }
 
+// Review represents a reviewer's overall assessment of a pull request.
 type Review struct {
 	Author    string
 	State     string
@@ -31,6 +34,7 @@ type Review struct {
 	CreatedAt time.Time
 }
 
+// ReviewThread groups inline review comments on a specific file location.
 type ReviewThread struct {
 	IsResolved bool
 	IsOutdated bool
@@ -39,12 +43,14 @@ type ReviewThread struct {
 	Comments   []Comment
 }
 
+// Comment is a single comment left on a PR or review thread.
 type Comment struct {
 	Author    string
 	Body      string
 	CreatedAt time.Time
 }
 
+// FetchPR queries GitHub for the most recent open PR on the given branch.
 func FetchPR(ctx context.Context, client *githubv4.Client, owner, repo, branch string) (*PR, error) {
 	var query struct {
 		Repository struct {
@@ -53,7 +59,7 @@ func FetchPR(ctx context.Context, client *githubv4.Client, owner, repo, branch s
 					Number    int
 					Title     string
 					Body      string
-					URL       string    `graphql:"url"`
+					URL       string `graphql:"url"`
 					State     string
 					CreatedAt time.Time
 					Author    struct {
@@ -106,7 +112,7 @@ func FetchPR(ctx context.Context, client *githubv4.Client, owner, repo, branch s
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":  githubv4.String(owner),
 		"name":   githubv4.String(repo),
 		"branch": githubv4.String(branch),

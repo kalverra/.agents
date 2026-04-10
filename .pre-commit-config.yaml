@@ -5,7 +5,6 @@ repos:
       - id: check-yaml
         exclude: deploy/charts/.*
       - id: detect-aws-credentials
-        args: [--allow-missing-credentials]
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -15,18 +14,37 @@ repos:
     hooks:
       - id: codespell
         exclude: go\.sum$
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.11.4
+    hooks:
+      - id: golangci-lint-config-verify
+      - id: golangci-lint-full
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.11
+    rev: v1.7.12
     hooks:
       - id: actionlint
   - repo: local
     hooks:
-      - id: eval-regressions
-        name: prompt regressions
-        entry: ./scripts/.venv/bin/python ./scripts/eval/eval.py --check-dirty
-        language: system
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: go mod tidy
         pass_filenames: false
-        files: ^(.*\.md|scripts/eval/.*)$
-        stages: [pre-commit]
+        types_or: [go, go-mod, go-sum]
+        language: golang
+        stages: [pre-commit, pre-push]
+      - id: go-generate
+        name: go generate
+        entry: go generate ./...
+        pass_filenames: false
+        types_or: [go, go-mod, go-sum]
+        language: golang
+        stages: [pre-commit, pre-push]
+      - id: go-short-tests
+        name: go short tests
+        entry: env gotestsum -- -cover -short ./...
+        pass_filenames: false
+        types_or: [go, go-mod, go-sum]
+        language: golang
+        stages: [pre-push]
 
 default_install_hook_types: [pre-commit, pre-push]

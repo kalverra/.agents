@@ -22,6 +22,11 @@ Prepend rtk to shell commands.
 </hookable>
 - Docs: If looking for docs on any library or package, use the find-docs skill.
 - Web: Use scrapling: scrapling extract fetch --ai-targeted <url> tmp.md && cat tmp.md && rm tmp.md
+- ripgrep: faster grep
+- fd: faster find
+- delta: better git diffs
+- eza: better ls
+- bat: file viewing
 </tools>
 
 <permissions>

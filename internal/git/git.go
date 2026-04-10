@@ -1,4 +1,5 @@
-package main
+// Package git provides helpers for interacting with local git repositories.
+package git
 
 import (
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"strings"
 )
 
+// RepoInfo holds the parsed owner, repo name, and current branch of a git repository.
 type RepoInfo struct {
 	Owner  string
 	Name   string
@@ -16,6 +18,7 @@ type RepoInfo struct {
 
 var sshRemoteRe = regexp.MustCompile(`^[\w.-]+@[\w.-]+:([\w.-]+)/([\w.-]+?)(?:\.git)?$`)
 
+// DetectRepo inspects the git repository at dir and returns its owner, name, and current branch.
 func DetectRepo(dir string) (*RepoInfo, error) {
 	if err := runGit(dir, "rev-parse", "--show-toplevel"); err != nil {
 		return nil, fmt.Errorf("not a git repository (or any parent): %w", err)
@@ -62,7 +65,7 @@ func parseRemoteURL(remote string) (owner, name string, err error) {
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", args...) //nolint:gosec // git binary is hardcoded, not user-controlled
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -72,7 +75,7 @@ func gitOutput(dir string, args ...string) (string, error) {
 }
 
 func runGit(dir string, args ...string) error {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", args...) //nolint:gosec // git binary is hardcoded, not user-controlled
 	cmd.Dir = dir
 	return cmd.Run()
 }

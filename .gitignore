@@ -10,6 +10,7 @@ scripts/eval/eval_results.md
 
 # Secrets
 .gemini/
+.claude/
 gha-creds-*.json
 
 # IDE

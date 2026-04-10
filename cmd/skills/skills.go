@@ -9,3 +9,7 @@ var Cmd = &cobra.Command{
 	Use:   "skills",
 	Short: "Run skill focused code",
 }
+
+func init() {
+	Cmd.AddCommand(fetchPRCmd)
+}

@@ -12,4 +12,5 @@ lint:
     golangci-lint run ./... --fix
 
 install:
-    go run . install
+    go build -o agents .
+    ./agents install

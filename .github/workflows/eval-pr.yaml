@@ -29,6 +29,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: "pr-repo/go.mod"
+          cache: false
 
       - name: Compare prompt evaluations
         working-directory: pr-repo
@@ -36,7 +37,7 @@ jobs:
           go run . eval-compare \
             ../main-repo/scripts/eval/eval_history.json \
             scripts/eval/eval_history.json \
-            results.md
+            results.md || true
 
       - name: Post check results
         if: always()

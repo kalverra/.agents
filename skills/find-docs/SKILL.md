@@ -6,6 +6,7 @@ description: Retrieve up-to-date docs via ctx7.
 Use ctx7 for accurate documentation. Stop if missing.
 
 <workflow>
+NEVER answer questions about packages or libraries from memory. ALWAYS execute ctx7 docs.
 1. Resolve ID: ctx7 library "<name>" "<intent>". Select best match.
 2. Query: ctx7 docs <libraryId> "<question>". Focus query.
 3. Limit: Max 3 calls. Summarize findings.

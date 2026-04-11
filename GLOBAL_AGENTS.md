@@ -18,9 +18,9 @@ Use concise casual language. Avoid professionalism.
 <tools>
 If a CLI tool is missing, warn the user and prompt them to install it.
 <hookable name="rtk">
-Prepend rtk to shell commands.
+Whenever running shell commands, ALWAYS prefix them with "rtk" with no other prefix. For example, use "rtk ls -la" instead of "ls -la" or "rtk run ls -la".
 </hookable>
-- Docs: If looking for docs on any library or package, use the find-docs skill.
+- Docs: NEVER answer from memory for libraries/packages. ALWAYS use find-docs skill (ctx7) first.
 - Web: Use scrapling: scrapling extract fetch --ai-targeted <url> tmp.md && cat tmp.md && rm tmp.md
 - ripgrep: faster grep
 - fd: faster find

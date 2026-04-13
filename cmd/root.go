@@ -15,7 +15,7 @@ import (
 
 	"github.com/kalverra/agents/cmd/skills"
 	"github.com/kalverra/agents/internal/config"
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var cfg = &config.Config{}
@@ -39,8 +39,8 @@ var rootCmd = &cobra.Command{
 		zerolog.SetGlobalLevel(level)
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-		// Set AI Output
-		ui.SetAIOutput(cfg.AIOutput)
+		// Set output mode
+		output.SetJSON(cfg.AIOutput)
 
 		return nil
 	},

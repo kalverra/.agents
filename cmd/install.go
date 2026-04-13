@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/agent"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var installCmd = &cobra.Command{
@@ -28,10 +29,15 @@ var installCmd = &cobra.Command{
 			WithHooks:  !noHooks,
 			WithSkills: !noSkills,
 			Targets:    agent.ParseTargets(targetsStr),
-			AIOutput:   cfg.AIOutput,
 		}
 
-		return inst.Install()
+		report, err := inst.Install()
+		if err != nil {
+			return err
+		}
+
+		output.Write("install", report, nil)
+		return nil
 	},
 }
 

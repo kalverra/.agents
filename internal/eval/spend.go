@@ -2,6 +2,7 @@ package eval
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 )
 
@@ -55,4 +56,16 @@ func SaveSpend(path string, s Spend) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o600)
+}
+
+// CheckSpendCap returns an error if cumulative cost exceeds the cap.
+func CheckSpendCap(path string, spendCap float64) error {
+	spend, err := LoadSpend(path)
+	if err != nil {
+		return fmt.Errorf("loading spend: %w", err)
+	}
+	if spend.CumulativeCost >= spendCap {
+		return fmt.Errorf("spending cap exceeded: $%.4f spent of $%.4f cap", spend.CumulativeCost, spendCap)
+	}
+	return nil
 }

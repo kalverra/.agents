@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/eval"
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var evalLogCmd = &cobra.Command{
@@ -25,7 +25,7 @@ var evalLogCmd = &cobra.Command{
 		data, err := os.ReadFile(localLogPath) //nolint: gosec
 		if err != nil {
 			if os.IsNotExist(err) {
-				ui.Println("No local evaluation history found.")
+				output.Println("No local evaluation history found.")
 				return nil
 			}
 			return err
@@ -33,7 +33,7 @@ var evalLogCmd = &cobra.Command{
 
 		rawLines := splitLines(string(data))
 		if len(rawLines) == 0 {
-			ui.Println("No local evaluation history found.")
+			output.Println("No local evaluation history found.")
 			return nil
 		}
 
@@ -54,21 +54,23 @@ var evalLogCmd = &cobra.Command{
 			summaries = summaries[:limit]
 		}
 
-		ui.Printf("%-20s | %-8s | %-5s | %-7s | %-15s\n", "Timestamp", "Commit", "Score", "Passed", "Subject")
-		ui.Println(strings.Repeat("-", 65))
+		output.Write("eval-log", summaries, func() {
+			output.Printf("%-20s | %-8s | %-5s | %-7s | %-15s\n", "Timestamp", "Commit", "Score", "Passed", "Subject")
+			output.Println(strings.Repeat("-", 65))
 
-		for _, s := range summaries {
-			ts := s.Timestamp
-			if len(ts) > 19 {
-				ts = ts[:19] // YYYY-MM-DDTHH:MM:SS
+			for _, s := range summaries {
+				ts := s.Timestamp
+				if len(ts) > 19 {
+					ts = ts[:19] // YYYY-MM-DDTHH:MM:SS
+				}
+				commit := s.Commit
+				if len(commit) > 7 {
+					commit = commit[:7]
+				}
+				output.Printf("%-20s | %-8s | %-5.2f | %d/%-5d | %-15s\n",
+					ts, commit, s.AvgScore, s.PassedCount, s.TotalCases, s.Subject)
 			}
-			commit := s.Commit
-			if len(commit) > 7 {
-				commit = commit[:7]
-			}
-			ui.Printf("%-20s | %-8s | %-5.2f | %d/%-5d | %-15s\n",
-				ts, commit, s.AvgScore, s.PassedCount, s.TotalCases, s.Subject)
-		}
+		})
 
 		return nil
 	},

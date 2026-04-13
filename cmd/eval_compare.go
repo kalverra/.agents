@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/eval"
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var evalCompareCmd = &cobra.Command{
@@ -33,7 +33,7 @@ var evalCompareCmd = &cobra.Command{
 			if len(last.Commit) >= 7 {
 				commitStr = last.Commit[:7]
 			}
-			ui.Printf("Comparing against last record in history.jsonl (%s)\n", commitStr)
+			output.Printf("Comparing against last record in history.jsonl (%s)\n", commitStr)
 			mainTotal = last.AvgScore
 			mainScores = last.Scores
 		} else {
@@ -125,11 +125,11 @@ var evalCompareCmd = &cobra.Command{
 		}
 
 		if prTotal < 4.0 {
-			ui.Println("Score below 4.0 threshold.")
+			output.Println("Score below 4.0 threshold.")
 			os.Exit(1)
 		}
 
-		ui.Println("Evaluation checks passed.")
+		output.Println("Evaluation checks passed.")
 		return nil
 	},
 }

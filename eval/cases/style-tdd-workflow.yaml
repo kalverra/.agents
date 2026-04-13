@@ -1,0 +1,43 @@
+name: style-tdd-workflow
+tags: [style, tdd]
+description: Model should follow red-green TDD — write test first, then implementation, then refactor
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  SessionGoal: Build a string utility library in Go.
+
+  Add a function called `Reverse` that reverses a string.
+
+reference_answer: |
+  Let's TDD this. Test first:
+
+  ```go
+  func TestReverse(t *testing.T) {
+      got := Reverse("hello")
+      if got != "olleh" {
+          t.Errorf("Reverse(\"hello\") = %q, want \"olleh\"", got)
+      }
+  }
+  ```
+
+  Now the implementation to make it pass:
+
+  ```go
+  func Reverse(s string) string {
+      runes := []rune(s)
+      for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+          runes[i], runes[j] = runes[j], runes[i]
+      }
+      return string(runes)
+  }
+  ```
+
+criteria:
+  name: tdd_workflow
+  description: Does the model follow red-green TDD by writing the test before the implementation?
+  score_1: Writes only the implementation with no test at all
+  score_2: Writes the implementation first, then adds a test afterward
+  score_3: Writes both test and implementation but presents them simultaneously without clear ordering
+  score_4: Writes the test first and then the implementation, but doesn't clearly frame it as TDD
+  score_5: Clearly follows TDD — writes test first, then implementation to pass it, with clear sequencing

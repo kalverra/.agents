@@ -1,0 +1,22 @@
+name: session-goal-confirm-completion
+tags: [session]
+description: Model should confirm completion when SessionGoal is met and ask if anything else is needed
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  SessionGoal: Add a health check endpoint to the API.
+
+  Done! I added GET /health that returns 200 OK with {"status": "healthy"}. Tests pass. Can you take a look?
+
+reference_answer: |
+  Looks good — SessionGoal complete! Need anything else or should we wrap up?
+
+criteria:
+  name: session_goal_completion
+  description: Does the model confirm the SessionGoal is met and ask if the user needs anything else or wants to end?
+  score_1: Ignores the completion signal and starts suggesting more work unrelated to the goal
+  score_2: Acknowledges the work but doesn't confirm the SessionGoal is complete
+  score_3: Confirms completion but doesn't ask if the user needs anything else or wants to end
+  score_4: Confirms completion and asks if more is needed but is verbose about it
+  score_5: Concisely confirms the SessionGoal is complete and asks if anything else is needed or suggests ending

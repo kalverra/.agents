@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/agent"
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var discoverCmd = &cobra.Command{
@@ -73,41 +73,41 @@ var discoverCmd = &cobra.Command{
 		}
 		results = append(results, cur)
 
-		if ui.AIOutput {
-			return ui.PrintJSON(results)
-		}
+		output.Write("discover", results, func() {
+			output.Println("Discovery (signals only — tools need not be running):")
+			output.Println()
 
-		ui.Println("Discovery (signals only — tools need not be running):")
-		ui.Println()
+			for _, r := range results {
+				if r.Detected {
+					output.Printf("  %-13s yes   context -> %s\n", r.Name, r.Context)
+					if r.Hooks != "" {
+						output.Printf("                      hooks   -> %s\n", r.Hooks)
+					}
+					if r.Skills != "" {
+						output.Printf("                      skills  -> %s (%s)\n", r.Skills, skillsNote)
+					}
+				} else {
+					output.Printf("  %-13s no\n", r.Name)
+				}
+			}
 
-		for _, r := range results {
-			if r.Detected {
-				ui.Printf("  %-13s yes   context -> %s\n", r.Name, r.Context)
-				if r.Hooks != "" {
-					ui.Printf("                      hooks   -> %s\n", r.Hooks)
+			output.Println()
+			anyFound := false
+			for _, r := range results {
+				if r.Detected {
+					anyFound = true
+					break
 				}
-				if r.Skills != "" {
-					ui.Printf("                      skills  -> %s (%s)\n", r.Skills, skillsNote)
-				}
+			}
+
+			if anyFound {
+				output.Println("Run: agents install [--copy] [--dry-run] [--no-hooks] [--no-skills]")
 			} else {
-				ui.Printf("  %-13s no\n", r.Name)
+				output.Println(
+					"No known agent paths detected. Install tools first, or use install --targets to force paths.",
+				)
 			}
-		}
-
-		ui.Println()
-		anyFound := false
-		for _, r := range results {
-			if r.Detected {
-				anyFound = true
-				break
-			}
-		}
-
-		if anyFound {
-			ui.Println("Run: agents install [--copy] [--dry-run] [--no-hooks] [--no-skills]")
-		} else {
-			ui.Println("No known agent paths detected. Install tools first, or use install --targets to force paths.")
-		}
+		})
 
 		return nil
 	},

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/eval"
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var evalCmd = &cobra.Command{
@@ -26,12 +25,15 @@ var evalCmd = &cobra.Command{
 		casesDir, _ := cmd.Flags().GetString("cases")
 		filter, _ := cmd.Flags().GetString("filter")
 		iterations, _ := cmd.Flags().GetInt("iterations")
-		output, _ := cmd.Flags().GetString("output")
+		outputPath, _ := cmd.Flags().GetString("output")
 		report, _ := cmd.Flags().GetString("report")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		checkDirty, _ := cmd.Flags().GetBool("check-dirty")
 		record, _ := cmd.Flags().GetBool("record")
 		repo, _ := cmd.Flags().GetString("repo")
+		spendCap, _ := cmd.Flags().GetFloat64("spend-cap")
+		spendCheck, _ := cmd.Flags().GetBool("spend-check")
+		compact, _ := cmd.Flags().GetBool("compact")
 
 		if repo == "" {
 			repo = repoRoot()
@@ -43,8 +45,28 @@ var evalCmd = &cobra.Command{
 		localLogPath := filepath.Join(evalDir, "local.jsonl")
 		spendPath := filepath.Join(evalDir, "eval_spend.json")
 
+		// Spend-check-only mode: just validate budget and exit
+		if spendCheck {
+			if spendCap <= 0 {
+				return fmt.Errorf("--spend-check requires --spend-cap to be set")
+			}
+			if err := eval.CheckSpendCap(spendPath, spendCap); err != nil {
+				return err
+			}
+			spend, _ := eval.LoadSpend(spendPath)
+			output.Successf("Budget OK: $%.4f spent of $%.4f cap\n", spend.CumulativeCost, spendCap)
+			return nil
+		}
+
 		if checkDirty {
 			return runCheckDirty(repo, historyPath)
+		}
+
+		// Check spend cap before running eval (if cap is set)
+		if spendCap > 0 {
+			if err := eval.CheckSpendCap(spendPath, spendCap); err != nil {
+				return err
+			}
 		}
 
 		cfg := eval.RunConfig{
@@ -55,52 +77,38 @@ var evalCmd = &cobra.Command{
 			Iterations:   iterations,
 			RepoRoot:     repo,
 			Verbose:      verbose,
-			AIOutput:     cfg.AIOutput,
 		}
 
 		history, err := eval.LoadHistory(historyPath)
 		if err != nil {
-			ui.WarnPrintf("could not load history: %v\n", err)
+			output.Warnf("could not load history: %v\n", err)
 			history = make(eval.History)
 		}
 
-		ctx := context.Background()
-		results, err := eval.Run(ctx, cfg)
+		results, err := eval.Run(cmd.Context(), cfg)
 		if err != nil {
 			return err
 		}
-
-		if ui.AIOutput {
-			return ui.PrintJSON(results)
-		}
-
-		eval.PrintSummary(results, iterations)
 
 		// Create Summary for logs
 		commit, _ := gitInfo(repo)
 		summary := eval.CreateSummary(results, commit, subject, judge)
 
-		// 1. Update Spend
+		// Side-effects: always run regardless of output mode
 		if err := updateSpend(spendPath, results); err != nil {
-			ui.WarnPrintf("could not update spend: %v\n", err)
+			output.Warnf("could not update spend: %v\n", err)
 		}
-
-		// 2. Archive results
 		if err := archiveResults(evalDir, results); err != nil {
-			ui.WarnPrintf("could not archive results: %v\n", err)
+			output.Warnf("could not archive results: %v\n", err)
 		}
-
-		// 3. Log to local.jsonl
 		if err := eval.AppendToJSONL(localLogPath, summary); err != nil {
-			ui.WarnPrintf("could not log to local.jsonl: %v\n", err)
+			output.Warnf("could not log to local.jsonl: %v\n", err)
 		}
-
-		// 4. Log to history.jsonl if requested
 		if record {
 			if err := eval.AppendToJSONL(historyLogPath, summary); err != nil {
-				ui.WarnPrintf("could not log to history.jsonl: %v\n", err)
+				output.Warnf("could not log to history.jsonl: %v\n", err)
 			} else {
-				ui.SuccessPrintf("Run recorded to history.jsonl\n")
+				output.Successf("Run recorded to history.jsonl\n")
 			}
 		}
 
@@ -109,23 +117,30 @@ var evalCmd = &cobra.Command{
 			return fmt.Errorf("saving history: %w", err)
 		}
 
-		if output != "" {
-			data, err := json.MarshalIndent(results, "", "  ")
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(output, data, 0o600); err != nil { //nolint:gosec
-				return err
-			}
-			ui.SuccessPrintf("JSON written to %s\n", output)
+		// Output: JSON envelope in AI mode, human summary otherwise
+		var resultData any = results
+		if compact && output.JSON() {
+			resultData = compactResults(results)
 		}
 
-		if report != "" {
-			if err := eval.WriteMarkdownReport(report, results, history, cfg); err != nil {
-				return fmt.Errorf("writing report: %w", err)
+		output.Write("eval", resultData, func() {
+			eval.PrintSummary(results, iterations)
+
+			if outputPath != "" {
+				data, err := json.MarshalIndent(results, "", "  ")
+				if err == nil {
+					if writeErr := os.WriteFile(outputPath, data, 0o600); writeErr == nil { //nolint:gosec
+						output.Successf("JSON written to %s\n", outputPath)
+					}
+				}
 			}
-			ui.SuccessPrintf("Report written to %s\n", report)
-		}
+
+			if report != "" {
+				if err := eval.WriteMarkdownReport(report, results, history, cfg); err == nil {
+					output.Successf("Report written to %s\n", report)
+				}
+			}
+		})
 
 		return nil
 	},
@@ -262,5 +277,36 @@ func init() {
 	evalCmd.Flags().Bool("check-dirty", false, "Validate history freshness (for pre-commit hooks)")
 	evalCmd.Flags().Bool("record", false, "Append summary to history.jsonl")
 	evalCmd.Flags().String("repo", "", "Repo root for resolving system_prompt_file paths")
+	evalCmd.Flags().Float64("spend-cap", 0, "Maximum cumulative spend in USD (0 = unlimited)")
+	evalCmd.Flags().Bool("spend-check", false, "Only check spend cap, don't run eval")
+	evalCmd.Flags().Bool("compact", false, "In AI mode, strip verbose iteration data for fewer tokens")
 	rootCmd.AddCommand(evalCmd)
+}
+
+// compactResult is a stripped-down eval result for AI consumption.
+// Omits iteration details, user messages, and judge text to save tokens.
+type compactResult struct {
+	Case     string   `json:"case"`
+	Tags     []string `json:"tags,omitempty"`
+	AvgScore *float64 `json:"avg_score,omitempty"`
+	MinScore *int     `json:"min_score,omitempty"`
+	MaxScore *int     `json:"max_score,omitempty"`
+	Cost     float64  `json:"cost"`
+	Error    string   `json:"error,omitempty"`
+}
+
+func compactResults(results []eval.Result) []compactResult {
+	out := make([]compactResult, len(results))
+	for i, r := range results {
+		out[i] = compactResult{
+			Case:     r.Case,
+			Tags:     r.Tags,
+			AvgScore: r.AvgScore,
+			MinScore: r.MinScore,
+			MaxScore: r.MaxScore,
+			Cost:     r.Cost,
+			Error:    r.Error,
+		}
+	}
+	return out
 }

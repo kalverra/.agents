@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 // RunConfig holds all the parameters for an eval run.
@@ -35,11 +35,11 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 		return nil, err
 	}
 
-	ui.Printf("\nPrompt Eval Harness\n")
-	ui.Printf("  Subject : %s\n", cfg.SubjectModel)
-	ui.Printf("  Judge   : %s\n", cfg.JudgeModel)
-	ui.Printf("  Cases   : %d\n", len(cases))
-	ui.Printf("  Iters   : %d\n\n", cfg.Iterations)
+	output.Printf("\nPrompt Eval Harness\n")
+	output.Printf("  Subject : %s\n", cfg.SubjectModel)
+	output.Printf("  Judge   : %s\n", cfg.JudgeModel)
+	output.Printf("  Cases   : %d\n", len(cases))
+	output.Printf("  Iters   : %d\n\n", cfg.Iterations)
 
 	type prepared struct {
 		c            Case
@@ -50,7 +50,7 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 	for _, c := range cases {
 		sp, err := LoadSystemPrompt(c, cfg.RepoRoot)
 		if err != nil {
-			ui.WarnPrintf("Skipped %s: %v\n", c.Name, err)
+			output.Warnf("Skipped %s: %v\n", c.Name, err)
 			continue
 		}
 		active = append(active, prepared{c: c, systemPrompt: sp})
@@ -60,7 +60,7 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, 5) // Limit concurrency to 5 cases at a time
 
-	ui.Println("Executing Cases...")
+	output.Println("Executing Cases...")
 
 	for i := range active {
 		wg.Add(1)
@@ -79,7 +79,7 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 				UserMessage:  a.c.UserMessage,
 			}
 
-			ui.Printf("[%d/%d] %s\n", idx+1, len(active), a.c.Name)
+			output.Printf("[%d/%d] %s\n", idx+1, len(active), a.c.Name)
 
 			for it := 1; it <= cfg.Iterations; it++ {
 				// Phase 1: Subject
@@ -115,7 +115,7 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 
 				res.Iterations = append(res.Iterations, iteration)
 
-				ui.VerbosePrintf(cfg.Verbose, "  [%s] it=%d score=%v cost=$%.6f\n", a.c.Name, it, score, iteration.Cost)
+				output.Verbosef(cfg.Verbose, "  [%s] it=%d score=%v cost=$%.6f\n", a.c.Name, it, score, iteration.Cost)
 			}
 
 			results[idx] = aggregateResult(a.c, res.Iterations, cfg)
@@ -124,7 +124,7 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 			if results[idx].AvgScore != nil {
 				scoreStr = fmt.Sprintf("%.1f", *results[idx].AvgScore)
 			}
-			ui.Printf(
+			output.Printf(
 				"  -> done %s score=%s cost=$%.6f\n",
 				ScoreEmoji(results[idx].MaxScore),
 				scoreStr,

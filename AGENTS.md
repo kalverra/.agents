@@ -6,6 +6,7 @@ go build -o agents . # build
 go test ./... # test
 golangci-lint run ./... --fix # lint
 go run . -h # help menu
+go run . [cmd] --ai-output # run commands with output specifically for LLM consumption
 
 DO NOT run `go fmt`, `goimports`, or any other base go commands outside of the above
 </commands>
@@ -18,7 +19,10 @@ Located in `skills/`
 
 <style>
 - Use zerolog for all logging. Logging is not user output, it is only for debugging.
-- Each Go command should utilize the `--ai-output` flag to format output for consumption by LLMs
+- Each Go command should utilize the `--ai-output` flag to format output for consumption by LLMs.
+- AI output uses a consistent JSON envelope: `{"status":"ok","command":"<name>","data":<payload>}`.
+- Use `output.Write(command, data, func() {...})` to cleanly handle both JSON and human output paths in one call without branching.
+- `eval --compact` strips verbose iteration data for fewer tokens.
 </style>
 
 <docs>

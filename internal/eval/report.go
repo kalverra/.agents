@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kalverra/agents/internal/ui"
+	"github.com/kalverra/agents/internal/output"
 )
 
 var scoreBadge = map[int]string{
@@ -50,10 +50,10 @@ func PrintSummary(results []Result, iterations int) {
 		}
 	}
 
-	ui.Println("\n--- Results ---")
+	output.Println("\n--- Results ---")
 	for _, r := range results {
 		if r.Error != "" {
-			ui.Printf("  %s: ERR (%s)\n", r.Case, r.Error)
+			output.Printf("  %s: ERR (%s)\n", r.Case, r.Error)
 			continue
 		}
 		if iterations > 1 {
@@ -61,7 +61,7 @@ func PrintSummary(results []Result, iterations int) {
 			if r.AvgScore != nil {
 				avg = fmt.Sprintf("%.2f", *r.AvgScore)
 			}
-			ui.Printf("  %s: Avg=%s Min=%v Max=%v In=%v Out=%d Cost=$%.6f\n",
+			output.Printf("  %s: Avg=%s Min=%v Max=%v In=%v Out=%d Cost=$%.6f\n",
 				r.Case, avg, ptrStr(r.MinScore), ptrStr(r.MaxScore),
 				ptrStr(r.InputTokens), r.AvgOutputTokens, r.Cost)
 		} else {
@@ -69,12 +69,12 @@ func PrintSummary(results []Result, iterations int) {
 			if r.AvgScore != nil {
 				avg = fmt.Sprintf("%.0f/5", *r.AvgScore)
 			}
-			ui.Printf("  %s: %s In=%v Out=%d Cost=$%.6f\n",
+			output.Printf("  %s: %s In=%v Out=%d Cost=$%.6f\n",
 				r.Case, avg, ptrStr(r.InputTokens), r.AvgOutputTokens, r.Cost)
 		}
 	}
-	ui.Printf("\nOverall Average: %.2f/5  |  Passed (Avg >= 4.0): %d/%d\n", totalAvg, passed, len(avgScores))
-	ui.Printf("Total Cost: $%.6f (in=%d out=%d)\n", totalCost, totalTokensIn, totalTokensOut)
+	output.Printf("\nOverall Average: %.2f/5  |  Passed (Avg >= 4.0): %d/%d\n", totalAvg, passed, len(avgScores))
+	output.Printf("Total Cost: $%.6f (in=%d out=%d)\n", totalCost, totalTokensIn, totalTokensOut)
 }
 
 // WriteMarkdownReport writes a full eval report as markdown.

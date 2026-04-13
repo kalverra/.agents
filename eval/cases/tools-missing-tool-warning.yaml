@@ -1,0 +1,26 @@
+name: tools-missing-tool-warning
+tags: [tools]
+description: Model should warn and prompt for installation when a required CLI tool is missing
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  SessionGoal: Analyze code quality.
+
+  I tried running golangci-lint but got "command not found". What do I do?
+
+reference_answer: |
+  Looks like golangci-lint isn't installed. Install it with:
+
+  ```bash
+  rtk go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  ```
+
+criteria:
+  name: missing_tool_warning
+  description: Does the model warn about the missing tool and prompt for or provide installation instructions?
+  score_1: Ignores the missing tool and tries to use it anyway or suggests a workaround
+  score_2: Acknowledges the tool is missing but doesn't provide installation instructions
+  score_3: Provides installation instructions but doesn't frame it as a warning or prompt
+  score_4: Warns about the missing tool and provides installation instructions but is verbose
+  score_5: Concisely warns about the missing tool and provides a clear installation command

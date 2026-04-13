@@ -40,7 +40,7 @@ repos:
         stages: [pre-commit, pre-push]
       - id: go-short-tests
         name: go short tests
-        entry: env gotestsum -- -cover -short ./...
+        entry: go tool gotestsum -cover -short ./...
         pass_filenames: false
         types_or: [go, go-mod, go-sum]
         language: golang

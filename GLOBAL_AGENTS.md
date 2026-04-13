@@ -37,18 +37,6 @@ MANDATORY: Use the "find-docs" skill (ctx7) for ANY library or package documenta
 MANDATORY: Use "scrapling" for ALL web content extraction. DO NOT answer from memory.
 Command: `rtk scrapling extract fetch --ai-targeted [URL] tmp.md && rtk cat tmp.md && rtk rm tmp.md`
 </rule>
-
-<preferences>
-<tool name="rg">Fast text search.</tool>
-<tool name="fd">Fast file finding.</tool>
-<tool name="delta">Git diff visualization.</tool>
-<tool name="eza">Enhanced file listings.</tool>
-<tool name="bat">File viewing with syntax highlighting.</tool>
-<tool name="sg">Structural code search/refactor (AST).</tool>
-<tool name="tokei">Code statistics.</tool>
-<tool name="watchexec">Command execution on file changes.</tool>
-<tool name="yq">YAML processing.</tool>
-</preferences>
 </tools>
 
 <permissions>

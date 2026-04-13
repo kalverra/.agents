@@ -1,57 +1,101 @@
 {
   "permissions-stop-on-failure": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 914,
+    "avg_output_tokens": 39,
+    "token_score": 1334,
+    "cost": 0.0013345499999999999,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "personality-concise-casual": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 4,
+    "tokens": 879,
+    "avg_output_tokens": 81,
+    "token_score": 1418,
+    "cost": 0.0014180999999999998,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "rtk-prefix-shell-command": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 881,
+    "avg_output_tokens": 10,
+    "token_score": 1103,
+    "cost": 0.0011034,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "session-goal-ask": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 865,
+    "avg_output_tokens": 9,
+    "token_score": 1018,
+    "cost": 0.00101835,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "session-goal-confirm-completion": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 2,
+    "tokens": 903,
+    "avg_output_tokens": 10,
+    "token_score": 1166,
+    "cost": 0.00116625,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "session-goal-redirect-drift": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 885,
+    "avg_output_tokens": 39,
+    "token_score": 1259,
+    "cost": 0.0012595500000000001,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "style-tdd-workflow": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 3.6,
+    "tokens": 883,
+    "avg_output_tokens": 184,
+    "token_score": 1944,
+    "cost": 0.0019448999999999998,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "tools-find-docs": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 1133,
+    "avg_output_tokens": 24,
+    "token_score": 1397,
+    "cost": 0.00139755,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "tools-missing-tool-warning": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 4,
+    "tokens": 887,
+    "avg_output_tokens": 123,
+    "token_score": 1603,
+    "cost": 0.0016037999999999996,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "tools-prefer-rg-over-grep": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 881,
+    "avg_output_tokens": 12,
+    "token_score": 1093,
+    "cost": 0.0010932,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   },
   "tools-scrapling-web": {
-    "token_score": 0,
-    "subject_model": "gemini-3.1-flash-lite",
-    "judge_model": "gemini-3-flash"
+    "avg_score": 5,
+    "tokens": 890,
+    "avg_output_tokens": 49,
+    "token_score": 1285,
+    "cost": 0.0012855,
+    "subject_model": "gemini-3.1-flash-lite-preview",
+    "judge_model": "gemini-3-flash-preview"
   }
 }

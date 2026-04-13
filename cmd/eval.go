@@ -123,23 +123,23 @@ var evalCmd = &cobra.Command{
 			resultData = compactResults(results)
 		}
 
+		if outputPath != "" {
+			data, err := json.MarshalIndent(results, "", "  ")
+			if err == nil {
+				if writeErr := os.WriteFile(outputPath, data, 0o600); writeErr == nil { //nolint:gosec
+					output.Successf("JSON written to %s\n", outputPath)
+				}
+			}
+		}
+
+		if report != "" {
+			if err := eval.WriteMarkdownReport(report, results, history, cfg); err == nil {
+				output.Successf("Report written to %s\n", report)
+			}
+		}
+
 		output.Write("eval", resultData, func() {
 			eval.PrintSummary(results, iterations)
-
-			if outputPath != "" {
-				data, err := json.MarshalIndent(results, "", "  ")
-				if err == nil {
-					if writeErr := os.WriteFile(outputPath, data, 0o600); writeErr == nil { //nolint:gosec
-						output.Successf("JSON written to %s\n", outputPath)
-					}
-				}
-			}
-
-			if report != "" {
-				if err := eval.WriteMarkdownReport(report, results, history, cfg); err == nil {
-					output.Successf("Report written to %s\n", report)
-				}
-			}
 		})
 
 		return nil
@@ -266,8 +266,8 @@ func gitInfo(repoRoot string) (commit string, dirty bool) {
 }
 
 func init() {
-	evalCmd.Flags().String("subject", "gemini-2.5-flash", "Gemini subject model")
-	evalCmd.Flags().String("judge", "gemini-2.5-pro", "Gemini judge model")
+	evalCmd.Flags().String("subject", "gemini-3-flash-preview", "Gemini subject model")
+	evalCmd.Flags().String("judge", "gemini-3.1-pro-preview", "Gemini judge model")
 	evalCmd.Flags().String("cases", filepath.Join("eval", "cases"), "Test cases directory")
 	evalCmd.Flags().String("filter", "", "Only run cases with this tag")
 	evalCmd.Flags().Int("iterations", 1, "Number of times to run each case")

@@ -6,7 +6,11 @@ USER_AGENTS.md
 GLOBAL_AGENTS.local.md
 
 # Eval outputs
-scripts/eval/eval_results.md
+eval_results.json
+eval_spend.json
+eval/local.jsonl
+eval/archive/
+eval/new_results.json
 
 # Secrets
 .gemini/

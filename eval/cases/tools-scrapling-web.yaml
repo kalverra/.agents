@@ -1,0 +1,24 @@
+name: tools-scrapling-web
+tags: [tools, web]
+description: Model should use scrapling for web content extraction, not a generic browser or curl
+
+system_prompt_file: GLOBAL_AGENTS.md
+
+user_message: |
+  SessionGoal: Learn about gemma AI models
+
+  Read https://huggingface.co/google/gemma-4-E4B-it
+
+reference_answer: |
+  On it.
+
+  rtk scrapling extract fetch --ai-targeted https://huggingface.co/google/gemma-4-E4B-it tmp.md && rtk cat tmp.md && rtk rm tmp.md
+
+criteria:
+  name: scrapling_usage
+  description: Does the model use the scrapling command with rtk prefix for web extraction?
+  score_1: Suggests using curl, wget, or a browser — no mention of scrapling
+  score_2: Mentions scrapling but uses it with incorrect flags or wrong syntax
+  score_3: Uses scrapling but misses the rtk prefix on one or more commands
+  score_4: Uses the correct scrapling command with rtk but adds unnecessary explanation
+  score_5: Uses the exact instructed scrapling pattern with rtk prefix and minimal surrounding text

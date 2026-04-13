@@ -3,9 +3,11 @@ package eval
 import (
 	"context"
 	"fmt"
-	"os"
+	"sync"
 
-	tiktoken "github.com/pkoukk/tiktoken-go"
+	"github.com/rs/zerolog/log"
+
+	"github.com/kalverra/agents/internal/ui"
 )
 
 // RunConfig holds all the parameters for an eval run.
@@ -17,10 +19,12 @@ type RunConfig struct {
 	Iterations   int
 	RepoRoot     string
 	Verbose      bool
+	AIOutput     bool
 }
 
 // Run executes the eval harness: generates subject responses, then judges them.
 func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
+	log.Debug().Msg("Starting eval run")
 	cases, err := LoadCases(cfg.CasesDir, cfg.TagFilter)
 	if err != nil {
 		return nil, err
@@ -31,109 +35,123 @@ func Run(ctx context.Context, cfg RunConfig) ([]Result, error) {
 		return nil, err
 	}
 
-	fmt.Printf("\nPrompt Eval Harness\n")
-	fmt.Printf("  Subject : %s\n", cfg.SubjectModel)
-	fmt.Printf("  Judge   : %s\n", cfg.JudgeModel)
-	fmt.Printf("  Cases   : %d\n", len(cases))
-	fmt.Printf("  Iters   : %d\n\n", cfg.Iterations)
+	ui.Printf("\nPrompt Eval Harness\n")
+	ui.Printf("  Subject : %s\n", cfg.SubjectModel)
+	ui.Printf("  Judge   : %s\n", cfg.JudgeModel)
+	ui.Printf("  Cases   : %d\n", len(cases))
+	ui.Printf("  Iters   : %d\n\n", cfg.Iterations)
 
 	type prepared struct {
 		c            Case
 		systemPrompt string
-		inputTokens  *int
-		iterations   []Iteration
 	}
 
 	var active []prepared
-	var results []Result
-
-	// Load system prompts
 	for _, c := range cases {
 		sp, err := LoadSystemPrompt(c, cfg.RepoRoot)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  Warning: Skipped %s: %v\n", c.Name, err)
-			results = append(results, Result{Case: c.Name, Error: err.Error(), Tags: c.Tags})
+			ui.WarnPrintf("Skipped %s: %v\n", c.Name, err)
 			continue
 		}
-		var tokens *int
-		if enc, err := tiktoken.GetEncoding("cl100k_base"); err == nil {
-			n := len(enc.Encode(sp, nil, nil))
-			tokens = &n
-		}
-		active = append(active, prepared{c: c, systemPrompt: sp, inputTokens: tokens})
+		active = append(active, prepared{c: c, systemPrompt: sp})
 	}
 
-	// Phase 1: Generate subject responses
-	fmt.Println("Phase 1: Generating Responses")
+	results := make([]Result, len(active))
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, 5) // Limit concurrency to 5 cases at a time
+
+	ui.Println("Executing Cases...")
+
 	for i := range active {
-		a := &active[i]
-		fmt.Printf("[%d/%d] %s\n", i+1, len(active), a.c.Name)
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
-		for it := 1; it <= cfg.Iterations; it++ {
-			fmt.Printf("  -> calling subject...")
-			resp, outTokens, err := gc.CallSubject(ctx, cfg.SubjectModel, a.systemPrompt, a.c.UserMessage)
-			if err != nil {
-				return nil, fmt.Errorf("subject call for %s: %w", a.c.Name, err)
+			a := &active[idx]
+			res := Result{
+				Case:         a.c.Name,
+				Tags:         a.c.Tags,
+				Description:  a.c.Description,
+				SubjectModel: cfg.SubjectModel,
+				JudgeModel:   cfg.JudgeModel,
+				UserMessage:  a.c.UserMessage,
 			}
-			fmt.Println(" done")
 
-			if cfg.Verbose {
-				fmt.Printf("  --- Subject Response ---\n%s\n  ---\n", resp)
+			ui.Printf("[%d/%d] %s\n", idx+1, len(active), a.c.Name)
+
+			for it := 1; it <= cfg.Iterations; it++ {
+				// Phase 1: Subject
+				resp, inTokens, outTokens, err := gc.CallSubject(ctx, cfg.SubjectModel, a.systemPrompt, a.c.UserMessage)
+				if err != nil {
+					res.Error = fmt.Sprintf("subject call failed: %v", err)
+					break
+				}
+				cost := CalculateCost(cfg.SubjectModel, inTokens, outTokens)
+
+				iteration := Iteration{
+					Num:             it,
+					SubjectResponse: resp,
+					InputTokens:     inTokens,
+					OutputTokens:    outTokens,
+					Cost:            cost,
+				}
+
+				// Phase 2: Judge
+				prompt := FormatPrometheusPrompt(a.c, resp)
+				raw, judgeIn, judgeOut, err := gc.CallJudge(ctx, cfg.JudgeModel, prompt)
+				if err != nil {
+					res.Error = fmt.Sprintf("judge call failed: %v", err)
+					res.Iterations = append(res.Iterations, iteration)
+					break
+				}
+				score := ParseScore(raw)
+				iteration.JudgeRaw = raw
+				iteration.Score = score
+
+				judgeCost := CalculateCost(cfg.JudgeModel, judgeIn, judgeOut)
+				iteration.Cost += judgeCost
+
+				res.Iterations = append(res.Iterations, iteration)
+
+				ui.VerbosePrintf(cfg.Verbose, "  [%s] it=%d score=%v cost=$%.6f\n", a.c.Name, it, score, iteration.Cost)
 			}
 
-			a.iterations = append(a.iterations, Iteration{
-				Num:             it,
-				SubjectResponse: resp,
-				OutputTokens:    outTokens,
-			})
-		}
-	}
+			results[idx] = aggregateResult(a.c, res.Iterations, cfg)
 
-	// Phase 2: Judge responses
-	fmt.Printf("\nPhase 2: Evaluating Responses (%s)\n", cfg.JudgeModel)
-	for i := range active {
-		a := &active[i]
-		fmt.Printf("[%d/%d] %s\n", i+1, len(active), a.c.Name)
-
-		for j := range a.iterations {
-			it := &a.iterations[j]
-			fmt.Printf("  -> calling judge...")
-			prompt := FormatPrometheusPrompt(a.c, it.SubjectResponse)
-			raw, err := gc.CallJudge(ctx, cfg.JudgeModel, prompt)
-			if err != nil {
-				return nil, fmt.Errorf("judge call for %s: %w", a.c.Name, err)
-			}
-			score := ParseScore(raw)
-			it.JudgeRaw = raw
-			it.Score = score
 			scoreStr := "?"
-			if score != nil {
-				scoreStr = fmt.Sprintf("%d", *score)
+			if results[idx].AvgScore != nil {
+				scoreStr = fmt.Sprintf("%.1f", *results[idx].AvgScore)
 			}
-			fmt.Printf(" done  %s score=%s\n", ScoreEmoji(score), scoreStr)
+			ui.Printf(
+				"  -> done %s score=%s cost=$%.6f\n",
+				ScoreEmoji(results[idx].MaxScore),
+				scoreStr,
+				results[idx].Cost,
+			)
 
-			if cfg.Verbose {
-				fmt.Printf("  --- Judge Feedback ---\n%s\n  ---\n", raw)
-			}
-		}
-
-		// Aggregate
-		r := aggregateResult(a.c, a.iterations, a.inputTokens, cfg)
-		results = append(results, r)
+		}(i)
 	}
+
+	wg.Wait()
 
 	return results, nil
 }
 
-func aggregateResult(c Case, iterations []Iteration, inputTokens *int, cfg RunConfig) Result {
+func aggregateResult(c Case, iterations []Iteration, cfg RunConfig) Result {
 	var validScores []int
 	var totalOutTokens int
+	var totalInTokens int
+	var totalCost float64
 
 	for _, it := range iterations {
 		if it.Score != nil {
 			validScores = append(validScores, *it.Score)
 		}
 		totalOutTokens += it.OutputTokens
+		totalInTokens += it.InputTokens
+		totalCost += it.Cost
 	}
 
 	r := Result{
@@ -143,13 +161,14 @@ func aggregateResult(c Case, iterations []Iteration, inputTokens *int, cfg RunCo
 		SubjectModel: cfg.SubjectModel,
 		JudgeModel:   cfg.JudgeModel,
 		UserMessage:  c.UserMessage,
-		InputTokens:  inputTokens,
 		Iterations:   iterations,
+		Cost:         totalCost,
 	}
 
 	if len(iterations) > 0 {
-		avg := totalOutTokens / len(iterations)
-		r.AvgOutputTokens = avg
+		r.AvgOutputTokens = totalOutTokens / len(iterations)
+		avgIn := totalInTokens / len(iterations)
+		r.InputTokens = &avgIn
 	}
 
 	if len(validScores) > 0 {
@@ -170,10 +189,9 @@ func aggregateResult(c Case, iterations []Iteration, inputTokens *int, cfg RunCo
 		r.MaxScore = &maxS
 	}
 
-	if inputTokens != nil {
-		ts := *inputTokens + r.AvgOutputTokens*5
-		r.TokenScore = &ts
-	}
+	// TokenScore is now cost in micro-dollars for visibility in legacy fields
+	ts := int(totalCost * 1_000_000)
+	r.TokenScore = &ts
 
 	return r
 }

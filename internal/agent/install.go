@@ -8,7 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/kalverra/agents/internal/markdown"
+	"github.com/kalverra/agents/internal/ui"
 )
 
 // Installer deploys global agents markdown, hooks, and skills.
@@ -20,10 +23,12 @@ type Installer struct {
 	WithHooks  bool
 	WithSkills bool
 	Targets    []Agent // nil means all detected
+	AIOutput   bool
 }
 
 // Install runs the full deployment for all targeted agents.
 func (inst *Installer) Install() error {
+	log.Debug().Msg("Starting installation")
 	src := filepath.Join(inst.RepoRoot, "GLOBAL_AGENTS.md")
 	if _, err := os.Stat(src); err != nil {
 		return fmt.Errorf("missing source file: %s", src)
@@ -57,8 +62,8 @@ func (inst *Installer) Install() error {
 	}
 
 	if !didClaude && !didGemini && !didCursor {
-		fmt.Println("Nothing installed. Try: agents discover")
-		fmt.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor")
+		ui.Println("Nothing installed. Try: agents discover")
+		ui.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor")
 		return fmt.Errorf("no agents installed")
 	}
 
@@ -77,7 +82,7 @@ func (inst *Installer) installClaude(src, hooksDir string, detected map[Agent]bo
 		return false, nil
 	}
 	if !detected[Claude] {
-		fmt.Printf("Warning: claude-code not detected; writing %s anyway (--targets).\n", MarkdownDest(Claude))
+		ui.WarnPrintf("claude-code not detected; writing %s anyway (--targets).\n", MarkdownDest(Claude))
 	}
 	if err := inst.deployMarkdown(src, MarkdownDest(Claude), inst.WithHooks); err != nil {
 		return false, err
@@ -102,7 +107,7 @@ func (inst *Installer) installGemini(src, hooksDir string, detected map[Agent]bo
 		return false, false, nil
 	}
 	if !geminiDetected {
-		fmt.Printf("Warning: gemini-cli / antigravity not detected; writing %s anyway (--targets).\n",
+		ui.WarnPrintf("gemini-cli / antigravity not detected; writing %s anyway (--targets).\n",
 			MarkdownDest(Gemini))
 	}
 
@@ -133,9 +138,7 @@ func (inst *Installer) installCursor(src, hooksDir string, detected map[Agent]bo
 		return false, nil
 	}
 	if !detected[Cursor] {
-		fmt.Println(
-			"Warning: cursor dirs not detected; writing ~/.cursor/rules/global-agents.mdc anyway (--targets).",
-		)
+		ui.WarnPrintf("cursor dirs not detected; writing ~/.cursor/rules/global-agents.mdc anyway (--targets).\n")
 	}
 	if err := inst.writeCursorMDC(src); err != nil {
 		return false, err
@@ -154,7 +157,7 @@ func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool) 
 	}
 	skillDirs := inst.repoSkillDirs()
 	if len(skillDirs) == 0 {
-		fmt.Fprintln(os.Stderr, "Note: skills deploy requested but no skill dirs with SKILL.md; skipping.")
+		ui.WarnPrintf("skills deploy requested but no skill dirs with SKILL.md; skipping.\n")
 		return nil
 	}
 	if didClaude {
@@ -177,7 +180,7 @@ func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool) 
 
 func (inst *Installer) deployMarkdown(src, dest string, stripHooks bool) error {
 	if inst.DryRun {
-		fmt.Printf("[dry-run] write %s (strip_hooks=%v, copy=%v)\n", dest, stripHooks, inst.UseCopy)
+		ui.Printf("[dry-run] write %s (strip_hooks=%v, copy=%v)\n", dest, stripHooks, inst.UseCopy)
 		return nil
 	}
 
@@ -214,7 +217,7 @@ func (inst *Installer) deployMarkdown(src, dest string, stripHooks bool) error {
 	); err != nil {
 		return err
 	}
-	fmt.Printf("Wrote: %s\n", dest)
+	ui.SuccessPrintf("Wrote: %s\n", dest)
 	return nil
 }
 
@@ -224,7 +227,7 @@ func (inst *Installer) linkOrCopy(src, dest string) error {
 		if inst.UseCopy {
 			verb = "cp"
 		}
-		fmt.Printf("[dry-run] %s %s -> %s\n", verb, src, dest)
+		ui.Printf("[dry-run] %s %s -> %s\n", verb, src, dest)
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
@@ -240,7 +243,7 @@ func (inst *Installer) linkOrCopy(src, dest string) error {
 		if err := os.WriteFile(dest, data, 0o644); err != nil { //nolint:gosec // world-readable config file is intended
 			return err
 		}
-		fmt.Printf("Copied: %s\n", dest)
+		ui.SuccessPrintf("Copied: %s\n", dest)
 		return nil
 	}
 
@@ -251,14 +254,14 @@ func (inst *Installer) linkOrCopy(src, dest string) error {
 	if err := os.Symlink(absSrc, dest); err != nil {
 		return err
 	}
-	fmt.Printf("Symlinked: %s -> %s\n", dest, absSrc)
+	ui.SuccessPrintf("Symlinked: %s -> %s\n", dest, absSrc)
 	return nil
 }
 
 func (inst *Installer) writeCursorMDC(globalPath string) error {
 	dest := MarkdownDest(Cursor)
 	if inst.DryRun {
-		fmt.Printf("[dry-run] write %s (frontmatter + GLOBAL_AGENTS.md)\n", dest)
+		ui.Printf("[dry-run] write %s (frontmatter + GLOBAL_AGENTS.md)\n", dest)
 		return nil
 	}
 
@@ -295,7 +298,7 @@ func (inst *Installer) writeCursorMDC(globalPath string) error {
 	); err != nil {
 		return err
 	}
-	fmt.Printf("Wrote: %s\n", dest)
+	ui.SuccessPrintf("Wrote: %s\n", dest)
 	return nil
 }
 
@@ -306,7 +309,7 @@ func (inst *Installer) deployHookScripts() (string, error) {
 
 	if inst.DryRun {
 		for _, s := range scripts {
-			fmt.Printf("[dry-run] cp %s -> %s\n", filepath.Join(srcDir, s), filepath.Join(destDir, s))
+			ui.Printf("[dry-run] cp %s -> %s\n", filepath.Join(srcDir, s), filepath.Join(destDir, s))
 		}
 		return destDir, nil
 	}
@@ -324,7 +327,7 @@ func (inst *Installer) deployHookScripts() (string, error) {
 			return "", err
 		}
 	}
-	fmt.Printf("Deployed hook scripts to %s\n", destDir)
+	ui.SuccessPrintf("Deployed hook scripts to %s\n", destDir)
 	return destDir, nil
 }
 
@@ -354,7 +357,7 @@ func (inst *Installer) installHooksForAgent(a Agent, hooksDir string) error {
 
 func mergeHooksIntoSettings(settingsPath string, snippet map[string]any, hookKey string, dryRun bool) error {
 	if dryRun {
-		fmt.Printf("[dry-run] merge hooks into %s (key: %s)\n", settingsPath, hookKey)
+		ui.Printf("[dry-run] merge hooks into %s (key: %s)\n", settingsPath, hookKey)
 		return nil
 	}
 
@@ -415,7 +418,7 @@ func mergeHooksIntoSettings(settingsPath string, snippet map[string]any, hookKey
 	); err != nil { //nolint:gosec // world-readable settings file is intended
 		return err
 	}
-	fmt.Printf("Merged hooks into %s\n", settingsPath)
+	ui.SuccessPrintf("Merged hooks into %s\n", settingsPath)
 	return nil
 }
 
@@ -467,7 +470,7 @@ func (inst *Installer) copySkills(skillDirs []string, destRoot string) error {
 	}
 	if inst.DryRun {
 		for _, sd := range skillDirs {
-			fmt.Printf("[dry-run] copytree %s -> %s\n", sd, filepath.Join(destRoot, filepath.Base(sd)))
+			ui.Printf("[dry-run] copytree %s -> %s\n", sd, filepath.Join(destRoot, filepath.Base(sd)))
 		}
 		return nil
 	}
@@ -484,7 +487,7 @@ func (inst *Installer) copySkills(skillDirs []string, destRoot string) error {
 		}
 		n++
 	}
-	fmt.Printf("Copied %d skill(s) to %s\n", n, destRoot)
+	ui.SuccessPrintf("Copied %d skill(s) to %s\n", n, destRoot)
 	return nil
 }
 
@@ -534,6 +537,6 @@ func (inst *Installer) writeLocalMergedGlobal(src string) error {
 	); err != nil {
 		return err
 	}
-	fmt.Printf("Wrote: %s\n", out)
+	ui.SuccessPrintf("Wrote: %s\n", out)
 	return nil
 }

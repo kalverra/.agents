@@ -4,24 +4,61 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/eval"
+	"github.com/kalverra/agents/internal/ui"
 )
 
 var evalCompareCmd = &cobra.Command{
-	Use:   "eval-compare <main.json> <pr.json> <output.md>",
-	Short: "Compare eval results between main and PR branches for CI",
-	Args:  cobra.ExactArgs(3),
-	RunE: func(_ *cobra.Command, args []string) error {
-		mainPath, prPath, outPath := args[0], args[1], args[2]
+	Use:   "eval-compare <pr.json> <output.md>",
+	Short: "Compare eval results against history.jsonl or main.json",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		prPath := args[0]
+		outPath := args[1]
 
-		mainHistory, err := eval.LoadHistory(mainPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Main json not found at %s, proceeding blindly.\n", mainPath)
-			mainHistory = make(eval.History)
+		var mainTotal float64
+		var mainScores map[string]float64
+
+		// Try to load baseline from history.jsonl first
+		casesDir, _ := cmd.Flags().GetString("cases")
+		historyLogPath := filepath.Join(filepath.Dir(casesDir), "history.jsonl")
+
+		if last, err := eval.LoadLastSummary(historyLogPath); err == nil {
+			commitStr := "unknown"
+			if len(last.Commit) >= 7 {
+				commitStr = last.Commit[:7]
+			}
+			ui.Printf("Comparing against last record in history.jsonl (%s)\n", commitStr)
+			mainTotal = last.AvgScore
+			mainScores = last.Scores
+		} else {
+			// Fallback to explicit main.json if provided (legacy or CI)
+			mainPath, _ := cmd.Flags().GetString("main")
+			if mainPath != "" {
+				mainHistory, err := eval.LoadHistory(mainPath)
+				if err == nil {
+					var scores []float64
+					mainScores = make(map[string]float64)
+					for k, v := range mainHistory {
+						if v.AvgScore != nil {
+							scores = append(scores, *v.AvgScore)
+							mainScores[k] = *v.AvgScore
+						}
+					}
+					if len(scores) > 0 {
+						sum := 0.0
+						for _, s := range scores {
+							sum += s
+						}
+						mainTotal = sum / float64(len(scores))
+					}
+				}
+			}
 		}
 
 		prHistory, err := eval.LoadHistory(prPath)
@@ -43,20 +80,6 @@ var evalCompareCmd = &cobra.Command{
 			prTotal /= float64(len(prScores))
 		}
 
-		var mainScores []float64
-		for _, v := range mainHistory {
-			if v.AvgScore != nil {
-				mainScores = append(mainScores, *v.AvgScore)
-			}
-		}
-		mainTotal := 0.0
-		if len(mainScores) > 0 {
-			for _, s := range mainScores {
-				mainTotal += s
-			}
-			mainTotal /= float64(len(mainScores))
-		}
-
 		totalDiff := compareDiff(prTotal, mainTotal)
 		scoreEmoji := evalScoreEmoji(prTotal)
 
@@ -66,7 +89,7 @@ var evalCompareCmd = &cobra.Command{
 
 		if prTotal < 4.0 {
 			b.WriteString("> FAILED: Overall score is below the 4.0 threshold.\n\n")
-		} else if prTotal < mainTotal {
+		} else if mainTotal > 0 && prTotal < mainTotal {
 			fmt.Fprintf(
 				&b,
 				"> WARNING: Quality regression detected! Score dropped from %.2f to %.2f.\n\n",
@@ -79,18 +102,19 @@ var evalCompareCmd = &cobra.Command{
 		b.WriteString("|------|-------|-------------|\n")
 
 		for caseID, prData := range prHistory {
-			mainData := mainHistory[caseID]
-
 			scoreStr := "ERR"
 			if prData.AvgScore != nil {
-				diff := compareDiffPtr(prData.AvgScore, mainData.AvgScore)
+				prevScore := mainScores[caseID]
+				diff := ""
+				if prevScore > 0 {
+					diff = compareDiff(*prData.AvgScore, prevScore)
+				}
 				scoreStr = fmt.Sprintf("%s %.2f %s", evalScoreEmoji(*prData.AvgScore), *prData.AvgScore, diff)
 			}
 
 			tsStr := "?"
 			if prData.TokenScore != nil {
-				diff := compareDiffIntPtr(prData.TokenScore, mainData.TokenScore)
-				tsStr = strings.TrimSpace(fmt.Sprintf("%d %s", *prData.TokenScore, diff))
+				tsStr = fmt.Sprintf("%d", *prData.TokenScore)
 			}
 
 			fmt.Fprintf(&b, "| %s | %s | %s |\n", caseID, strings.TrimSpace(scoreStr), tsStr)
@@ -101,11 +125,11 @@ var evalCompareCmd = &cobra.Command{
 		}
 
 		if prTotal < 4.0 {
-			fmt.Println("Score below 4.0 threshold.")
+			ui.Println("Score below 4.0 threshold.")
 			os.Exit(1)
 		}
 
-		fmt.Println("Evaluation checks passed.")
+		ui.Println("Evaluation checks passed.")
 		return nil
 	},
 }
@@ -120,6 +144,9 @@ func evalScoreEmoji(score float64) string {
 }
 
 func compareDiff(current, previous float64) string {
+	if previous == 0 {
+		return ""
+	}
 	diff := current - previous
 	if math.Abs(diff) < 0.01 {
 		return ""
@@ -131,28 +158,8 @@ func compareDiff(current, previous float64) string {
 	return fmt.Sprintf("(%s%.2f)", sign, diff)
 }
 
-func compareDiffPtr(current, previous *float64) string {
-	if current == nil || previous == nil {
-		return ""
-	}
-	return compareDiff(*current, *previous)
-}
-
-func compareDiffIntPtr(current, previous *int) string {
-	if current == nil || previous == nil {
-		return ""
-	}
-	diff := *current - *previous
-	if diff == 0 {
-		return ""
-	}
-	sign := "+"
-	if diff < 0 {
-		sign = ""
-	}
-	return fmt.Sprintf("(%s%d)", sign, diff)
-}
-
 func init() {
+	evalCompareCmd.Flags().String("main", "", "Baseline results JSON (fallback)")
+	evalCompareCmd.Flags().String("cases", filepath.Join("eval", "cases"), "Test cases directory for history.jsonl")
 	rootCmd.AddCommand(evalCompareCmd)
 }

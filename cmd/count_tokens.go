@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/markdown"
+	"github.com/kalverra/agents/internal/ui"
 )
 
 var countTokensCmd = &cobra.Command{
@@ -67,11 +68,15 @@ var countTokensCmd = &cobra.Command{
 		n := len(tokens)
 
 		if verbose {
-			fmt.Fprintf(os.Stderr, "encoding: %s\n", encName)
-			fmt.Fprintf(os.Stderr, "chars:  %d\n", len(text))
-			fmt.Fprintf(os.Stderr, "tokens: %d\n", n)
+			ui.WarnPrintf("encoding: %s\n", encName)
+			ui.WarnPrintf("chars:  %d\n", len(text))
+			ui.WarnPrintf("tokens: %d\n", n)
 		} else {
-			fmt.Println(n)
+			if ui.AIOutput {
+				ui.Printf("%d\n", n)
+			} else {
+				fmt.Println(n) // Keep simple for piping if not in AI mode
+			}
 		}
 
 		return nil

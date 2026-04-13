@@ -14,6 +14,7 @@ import (
 // Config is the configuration for the application.
 type Config struct {
 	LogLevel string `mapstructure:"log_level"`
+	AIOutput bool   `mapstructure:"ai_output"`
 }
 
 const (

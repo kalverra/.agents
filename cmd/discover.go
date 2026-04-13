@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kalverra/agents/internal/agent"
+	"github.com/kalverra/agents/internal/ui"
 )
 
 var discoverCmd = &cobra.Command{
@@ -16,79 +17,96 @@ var discoverCmd = &cobra.Command{
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		home := homeDir()
 
-		fmt.Println("Discovery (signals only — tools need not be running):")
-		fmt.Println()
-
 		skillCount := countRepoSkills()
 		skillsNote := fmt.Sprintf("%d in repo skills/", skillCount)
 		if skillCount == 0 {
 			skillsNote = "none in repo skills/"
 		}
 
-		anyFound := false
-
-		if agent.Detect(agent.Claude, verbose) {
-			fmt.Printf("  claude-code   yes   context -> %s\n", filepath.Join(home, ".claude", "CLAUDE.md"))
-			fmt.Printf(
-				"                      hooks   -> %s (PreToolUse)\n",
-				filepath.Join(home, ".claude", "settings.json"),
-			)
-			fmt.Printf("                      skills  -> %s/ (%s; copy on install)\n",
-				filepath.Join(home, ".claude", "skills"), skillsNote)
-			anyFound = true
-		} else {
-			fmt.Println("  claude-code   no    (no claude in PATH, no ~/.claude)")
+		type info struct {
+			Name     string `json:"name"`
+			Detected bool   `json:"detected"`
+			Context  string `json:"context,omitempty"`
+			Hooks    string `json:"hooks,omitempty"`
+			Skills   string `json:"skills,omitempty"`
+			Note     string `json:"note,omitempty"`
 		}
 
+		var results []info
+
+		// Claude
+		c := info{Name: "claude-code", Detected: agent.Detect(agent.Claude, verbose)}
+		if c.Detected {
+			c.Context = filepath.Join(home, ".claude", "CLAUDE.md")
+			c.Hooks = filepath.Join(home, ".claude", "settings.json")
+			c.Skills = filepath.Join(home, ".claude", "skills")
+		}
+		results = append(results, c)
+
+		// Gemini
 		geminiOK := agent.Detect(agent.Gemini, verbose)
-		antigravityOK := agent.Detect(agent.Antigravity, verbose)
 		geminiDir := agent.GeminiConfigDir()
+		g := info{Name: "gemini-cli", Detected: geminiOK}
+		if g.Detected {
+			g.Context = filepath.Join(geminiDir, "GEMINI.md")
+			g.Hooks = filepath.Join(geminiDir, "settings.json")
+			g.Skills = "~/.agents/skills/"
+		}
+		results = append(results, g)
 
-		if geminiOK {
-			fmt.Printf("  gemini-cli    yes   context -> %s\n", filepath.Join(geminiDir, "GEMINI.md"))
-			fmt.Printf("                      hooks   -> %s (BeforeTool)\n", filepath.Join(geminiDir, "settings.json"))
-			fmt.Printf("                      skills  -> ~/.agents/skills/ (%s; Gemini discovers here)\n", skillsNote)
-			anyFound = true
-		} else {
-			fmt.Println("  gemini-cli    no    (no gemini/gemini-cli in PATH, no config dir)")
+		// Antigravity
+		antigravityOK := agent.Detect(agent.Antigravity, verbose)
+		a := info{Name: "antigravity", Detected: antigravityOK}
+		if a.Detected {
+			a.Context = filepath.Join(geminiDir, "GEMINI.md")
+			a.Hooks = filepath.Join(geminiDir, "settings.json")
+			a.Skills = filepath.Join(home, ".gemini", "antigravity", "skills")
+		}
+		results = append(results, a)
+
+		// Cursor
+		cur := info{Name: "cursor", Detected: agent.Detect(agent.Cursor, verbose)}
+		if cur.Detected {
+			cur.Context = filepath.Join(home, ".cursor", "rules", "global-agents.mdc")
+			cur.Hooks = filepath.Join(home, ".cursor", "hooks.json")
+			cur.Skills = filepath.Join(home, ".cursor", "skills")
+		}
+		results = append(results, cur)
+
+		if ui.AIOutput {
+			return ui.PrintJSON(results)
 		}
 
-		if antigravityOK {
-			fmt.Printf("  antigravity   yes   context -> %s (shared with gemini-cli)\n",
-				filepath.Join(geminiDir, "GEMINI.md"))
-			fmt.Printf("                      hooks   -> %s (BeforeTool, shared)\n",
-				filepath.Join(geminiDir, "settings.json"))
-			fmt.Printf("                      skills  -> %s/ (%s; copy on install)\n",
-				filepath.Join(home, ".gemini", "antigravity", "skills"), skillsNote)
-			anyFound = true
-		} else {
-			fmt.Println("  antigravity   no    (no antigravity in PATH, no Antigravity app dirs)")
+		ui.Println("Discovery (signals only — tools need not be running):")
+		ui.Println()
+
+		for _, r := range results {
+			if r.Detected {
+				ui.Printf("  %-13s yes   context -> %s\n", r.Name, r.Context)
+				if r.Hooks != "" {
+					ui.Printf("                      hooks   -> %s\n", r.Hooks)
+				}
+				if r.Skills != "" {
+					ui.Printf("                      skills  -> %s (%s)\n", r.Skills, skillsNote)
+				}
+			} else {
+				ui.Printf("  %-13s no\n", r.Name)
+			}
 		}
 
-		if geminiOK && antigravityOK {
-			fmt.Println()
-			fmt.Println(
-				"  Note: gemini-cli and antigravity share ~/.gemini/ (GEMINI.md, settings.json). One install updates both.",
-			)
+		ui.Println()
+		anyFound := false
+		for _, r := range results {
+			if r.Detected {
+				anyFound = true
+				break
+			}
 		}
 
-		if agent.Detect(agent.Cursor, verbose) {
-			fmt.Printf("  cursor        yes   context -> %s (best-effort)\n",
-				filepath.Join(home, ".cursor", "rules", "global-agents.mdc"))
-			fmt.Printf("                      hooks   -> %s (preToolUse)\n",
-				filepath.Join(home, ".cursor", "hooks.json"))
-			fmt.Printf("                      skills  -> %s/ (%s; copy on install)\n",
-				filepath.Join(home, ".cursor", "skills"), skillsNote)
-			anyFound = true
-		} else {
-			fmt.Println("  cursor        no    (no ~/.cursor or OS-specific Cursor app support dir)")
-		}
-
-		fmt.Println()
 		if anyFound {
-			fmt.Println("Run: agents install [--copy] [--dry-run] [--no-hooks] [--no-skills]")
+			ui.Println("Run: agents install [--copy] [--dry-run] [--no-hooks] [--no-skills]")
 		} else {
-			fmt.Println("No known agent paths detected. Install tools first, or use install --targets to force paths.")
+			ui.Println("No known agent paths detected. Install tools first, or use install --targets to force paths.")
 		}
 
 		return nil

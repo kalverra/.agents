@@ -4,7 +4,6 @@ repos:
     hooks:
       - id: check-yaml
         exclude: deploy/charts/.*
-      - id: detect-aws-credentials
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace

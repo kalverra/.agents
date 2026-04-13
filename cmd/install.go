@@ -28,6 +28,7 @@ var installCmd = &cobra.Command{
 			WithHooks:  !noHooks,
 			WithSkills: !noSkills,
 			Targets:    agent.ParseTargets(targetsStr),
+			AIOutput:   cfg.AIOutput,
 		}
 
 		return inst.Install()

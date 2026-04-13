@@ -11,6 +11,7 @@ type Result struct {
 	InputTokens     *int        `json:"tokens,omitempty"`
 	AvgOutputTokens int         `json:"avg_output_tokens"`
 	TokenScore      *int        `json:"token_score,omitempty"`
+	Cost            float64     `json:"cost,omitempty"`
 	Iterations      []Iteration `json:"iterations"`
 	AvgScore        *float64    `json:"avg_score,omitempty"`
 	MinScore        *int        `json:"min_score,omitempty"`
@@ -20,11 +21,13 @@ type Result struct {
 
 // Iteration holds results for one iteration of a test case.
 type Iteration struct {
-	Num             int    `json:"iteration"`
-	SubjectResponse string `json:"subject_response"`
-	OutputTokens    int    `json:"output_tokens"`
-	JudgeRaw        string `json:"judge_raw,omitempty"`
-	Score           *int   `json:"score,omitempty"`
+	Num             int     `json:"iteration"`
+	SubjectResponse string  `json:"subject_response"`
+	InputTokens     int     `json:"input_tokens"`
+	OutputTokens    int     `json:"output_tokens"`
+	Cost            float64 `json:"cost,omitempty"`
+	JudgeRaw        string  `json:"judge_raw,omitempty"`
+	Score           *int    `json:"score,omitempty"`
 }
 
 // ScoreEmoji returns an emoji for a 1-5 score.

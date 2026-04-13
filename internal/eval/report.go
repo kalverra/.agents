@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/kalverra/agents/internal/ui"
 )
 
 var scoreBadge = map[int]string{
@@ -20,7 +22,8 @@ var scoreBadge = map[int]string{
 // PrintSummary prints a text summary table of results.
 func PrintSummary(results []Result, iterations int) {
 	var avgScores []float64
-	var totalTokensIn, totalTokensOut, totalTS int
+	var totalTokensIn, totalTokensOut int
+	var totalCost float64
 
 	for _, r := range results {
 		if r.AvgScore != nil {
@@ -30,9 +33,7 @@ func PrintSummary(results []Result, iterations int) {
 			totalTokensIn += *r.InputTokens
 		}
 		totalTokensOut += r.AvgOutputTokens
-		if r.TokenScore != nil {
-			totalTS += *r.TokenScore
-		}
+		totalCost += r.Cost
 	}
 
 	totalAvg := 0.0
@@ -49,10 +50,10 @@ func PrintSummary(results []Result, iterations int) {
 		}
 	}
 
-	fmt.Println("\n--- Results ---")
+	ui.Println("\n--- Results ---")
 	for _, r := range results {
 		if r.Error != "" {
-			fmt.Printf("  %s: ERR\n", r.Case)
+			ui.Printf("  %s: ERR (%s)\n", r.Case, r.Error)
 			continue
 		}
 		if iterations > 1 {
@@ -60,26 +61,27 @@ func PrintSummary(results []Result, iterations int) {
 			if r.AvgScore != nil {
 				avg = fmt.Sprintf("%.2f", *r.AvgScore)
 			}
-			fmt.Printf("  %s: Avg=%s Min=%v Max=%v In=%v Out=%d TokenScore=%v\n",
+			ui.Printf("  %s: Avg=%s Min=%v Max=%v In=%v Out=%d Cost=$%.6f\n",
 				r.Case, avg, ptrStr(r.MinScore), ptrStr(r.MaxScore),
-				ptrStr(r.InputTokens), r.AvgOutputTokens, ptrStr(r.TokenScore))
+				ptrStr(r.InputTokens), r.AvgOutputTokens, r.Cost)
 		} else {
 			avg := "ERR"
 			if r.AvgScore != nil {
 				avg = fmt.Sprintf("%.0f/5", *r.AvgScore)
 			}
-			fmt.Printf("  %s: %s In=%v Out=%d TokenScore=%v\n",
-				r.Case, avg, ptrStr(r.InputTokens), r.AvgOutputTokens, ptrStr(r.TokenScore))
+			ui.Printf("  %s: %s In=%v Out=%d Cost=$%.6f\n",
+				r.Case, avg, ptrStr(r.InputTokens), r.AvgOutputTokens, r.Cost)
 		}
 	}
-	fmt.Printf("\nOverall Average: %.2f/5  |  Passed (Avg >= 4.0): %d/%d\n", totalAvg, passed, len(avgScores))
-	fmt.Printf("Total Token Score: %d (in=%d out=%d)\n", totalTS, totalTokensIn, totalTokensOut)
+	ui.Printf("\nOverall Average: %.2f/5  |  Passed (Avg >= 4.0): %d/%d\n", totalAvg, passed, len(avgScores))
+	ui.Printf("Total Cost: $%.6f (in=%d out=%d)\n", totalCost, totalTokensIn, totalTokensOut)
 }
 
 // WriteMarkdownReport writes a full eval report as markdown.
 func WriteMarkdownReport(path string, results []Result, history History, cfg RunConfig) error {
 	var avgScores []float64
-	var totalTokensIn, totalTokensOut, totalTS int
+	var totalTokensIn, totalTokensOut int
+	var totalCost float64
 
 	for _, r := range results {
 		if r.AvgScore != nil {
@@ -89,9 +91,7 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 			totalTokensIn += *r.InputTokens
 		}
 		totalTokensOut += r.AvgOutputTokens
-		if r.TokenScore != nil {
-			totalTS += *r.TokenScore
-		}
+		totalCost += r.Cost
 	}
 
 	totalAvg := 0.0
@@ -130,16 +130,16 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 		passed,
 		len(avgScores),
 	)
-	fmt.Fprintf(&b, "**Total Token Score:** %d (in=%d out=%d)\n\n", totalTS, totalTokensIn, totalTokensOut)
+	fmt.Fprintf(&b, "**Total Cost:** $%.6f (in=%d out=%d)\n\n", totalCost, totalTokensIn, totalTokensOut)
 	b.WriteString("---\n\n## Summary\n\n")
 
 	// Summary table
 	if cfg.Iterations > 1 {
-		b.WriteString("| # | Case | Tags | In | Out | Token Score | Avg | Min | Max |\n")
-		b.WriteString("|---|------|------|----|-----|-------------|-----|-----|-----|\n")
+		b.WriteString("| # | Case | Tags | In | Out | Cost | Avg | Min | Max |\n")
+		b.WriteString("|---|------|------|----|-----|------|-----|-----|-----|\n")
 	} else {
-		b.WriteString("| # | Case | Tags | In | Out | Token Score | Score |\n")
-		b.WriteString("|---|------|------|----|-----|-------------|-------|\n")
+		b.WriteString("| # | Case | Tags | In | Out | Cost | Score |\n")
+		b.WriteString("|---|------|------|----|-----|------|-------|\n")
 	}
 
 	for i, r := range results {
@@ -155,11 +155,11 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 
 		prev := history[r.Case]
 		scoreDiff := formatDiff(r.AvgScore, prev.AvgScore)
-		tokenScoreDiff := formatDiffInt(r.TokenScore, prev.TokenScore)
+		// tokenScoreDiff := formatDiffInt(r.TokenScore, prev.TokenScore)
 
 		inTok := ptrStr(r.InputTokens)
 		outTok := fmt.Sprintf("%d", r.AvgOutputTokens)
-		tsStr := strings.TrimSpace(fmt.Sprintf("%s %s", ptrStr(r.TokenScore), tokenScoreDiff))
+		costStr := fmt.Sprintf("$%.6f", r.Cost)
 
 		if cfg.Iterations > 1 {
 			scoreStr := "ERR"
@@ -169,7 +169,7 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 				badge = scoreBadge[int(math.Round(*r.AvgScore))]
 			}
 			fmt.Fprintf(&b, "| %d | %s | %s | %s | %s | %s | %s %s %s | %s | %s |\n",
-				i+1, r.Case, tags, inTok, outTok, tsStr, badge, scoreStr, scoreDiff,
+				i+1, r.Case, tags, inTok, outTok, costStr, badge, scoreStr, scoreDiff,
 				ptrStr(r.MinScore), ptrStr(r.MaxScore))
 		} else {
 			badge := "?"
@@ -177,7 +177,7 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 				badge = scoreBadge[int(*r.AvgScore)]
 			}
 			fmt.Fprintf(&b, "| %d | %s | %s | %s | %s | %s | %s %s |\n",
-				i+1, r.Case, tags, inTok, outTok, tsStr, badge, scoreDiff)
+				i+1, r.Case, tags, inTok, outTok, costStr, badge, scoreDiff)
 		}
 	}
 
@@ -188,9 +188,15 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 		fmt.Fprintf(&b, "### %s\n\n%s  \n", r.Case, tags)
 
 		prev := history[r.Case]
-		tokenScoreDiff := formatDiffInt(r.TokenScore, prev.TokenScore)
-		tsStr := strings.TrimSpace(fmt.Sprintf("%s %s", ptrStr(r.TokenScore), tokenScoreDiff))
-		fmt.Fprintf(&b, "**Token Score:** %s (in=%s out=%d*5)  \n", tsStr, ptrStr(r.InputTokens), r.AvgOutputTokens)
+		costDiff := formatDiff(new(r.Cost), new(prev.Cost))
+		fmt.Fprintf(
+			&b,
+			"**Cost:** $%.6f %s (in=%s out=%d)  \n",
+			r.Cost,
+			costDiff,
+			ptrStr(r.InputTokens),
+			r.AvgOutputTokens,
+		)
 		fmt.Fprintf(&b, "**Description:** %s\n\n", r.Description)
 
 		scoreDiff := formatDiff(r.AvgScore, prev.AvgScore)
@@ -219,8 +225,8 @@ func WriteMarkdownReport(path string, results []Result, history History, cfg Run
 			if it.Score != nil {
 				scoreStr = scoreBadge[*it.Score]
 			}
-			fmt.Fprintf(&b, "#### %s (`%s`)\n**Score:** %s\n\n%s\n\n**Judge Feedback**\n\n%s\n\n",
-				header, r.SubjectModel, scoreStr,
+			fmt.Fprintf(&b, "#### %s (`%s`)\n**Score:** %s | **Cost:** $%.6f\n\n%s\n\n**Judge Feedback**\n\n%s\n\n",
+				header, r.SubjectModel, scoreStr, it.Cost,
 				strings.TrimSpace(it.SubjectResponse), strings.TrimSpace(it.JudgeRaw))
 		}
 		b.WriteString("---\n\n")
@@ -250,21 +256,6 @@ func formatDiff(current, previous *float64) string {
 		sign = ""
 	}
 	return fmt.Sprintf("(%s%.2f)", sign, diff)
-}
-
-func formatDiffInt(current, previous *int) string {
-	if current == nil || previous == nil {
-		return ""
-	}
-	diff := *current - *previous
-	if diff == 0 {
-		return ""
-	}
-	sign := "+"
-	if diff < 0 {
-		sign = ""
-	}
-	return fmt.Sprintf("(%s%d)", sign, diff)
 }
 
 func ptrStr(p *int) string {

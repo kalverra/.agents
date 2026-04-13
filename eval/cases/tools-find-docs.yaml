@@ -14,13 +14,13 @@ user_message: |
 reference_answer: |
   Let me look that up with find-docs.
 
-  ctx7 docs tiktoken "how does encoding_for_model work"
+  rtk ctx7 library "tiktoken" "encoding_for_model function"
 
 criteria:
   name: find_docs_usage
-  description: Does the model use the find-docs skill (ctx7 docs) rather than answering from memory or searching the web directly?
+  description: Does the model follow the find-docs workflow (using ctx7) rather than answering from memory?
   score_1: Answers entirely from memory without any mention of find-docs or ctx7
   score_2: Mentions find-docs but then answers from memory anyway
-  score_3: Invokes ctx7 but with incorrect syntax or wrong arguments
-  score_4: Correctly invokes ctx7 docs but also includes a memory-based answer alongside it
-  score_5: Correctly invokes `ctx7 docs <path> <question>` as the primary approach with no memory-based answer
+  score_3: Attempts to use ctx7 but with incorrect syntax (e.g. missing rtk if required by global rules)
+  score_4: Correctly initiates the find-docs workflow (using rtk ctx7 library or rtk ctx7 docs) but also includes a memory-based answer
+  score_5: Correctly initiates the find-docs workflow (starting with rtk ctx7 library or rtk ctx7 docs) as the primary approach with no memory-based answer

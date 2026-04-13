@@ -24,19 +24,14 @@ func StripHookableSections(text string) string {
 // StripHookableDelimiterLines removes only the <hookable> and </hookable> tag lines,
 // keeping the inner content. Used when deploying without hooks.
 func StripHookableDelimiterLines(text string) string {
-	var out strings.Builder
-	for line := range strings.SplitSeq(text, "\n") {
+	lines := strings.Split(text, "\n")
+	var filtered []string
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if openTagRe.MatchString(trimmed) || closeTagRe.MatchString(trimmed) {
 			continue
 		}
-		out.WriteString(line)
-		out.WriteString("\n")
+		filtered = append(filtered, line)
 	}
-	// The original text may not end with \n; trim the extra one we appended.
-	result := out.String()
-	if len(result) > 0 && (len(text) == 0 || text[len(text)-1] != '\n') {
-		result = result[:len(result)-1]
-	}
-	return result
+	return strings.Join(filtered, "\n")
 }

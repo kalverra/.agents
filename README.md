@@ -91,7 +91,7 @@ I've only thoroughly tested things on a few tools I personally use. If you notic
 
 The repo includes an evaluation harness to test whether agents accurately follow the instructions and skills defined here, while keeping token usage low.
 
-1. Feeds [test cases](./scripts/eval/cases/) to a subject LLM and captures output
+1. Feeds [test cases](./eval/cases/) to a subject LLM and captures output
 2. Feeds the input and output to a judge LLM, which scores each response 1-5 against a rubric
 3. Reports scores and token counts
 
@@ -105,4 +105,4 @@ GEMINI_API_KEY="your-key" just eval
 GEMINI_API_KEY="your-key" just eval 3
 ```
 
-Full results are written to `scripts/eval/eval_results.md`.
+Full results are written to `eval/eval_results.md`.

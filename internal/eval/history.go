@@ -11,6 +11,7 @@ type HistoryEntry struct {
 	Tokens          *int     `json:"tokens,omitempty"`
 	AvgOutputTokens *int     `json:"avg_output_tokens,omitempty"`
 	TokenScore      *int     `json:"token_score,omitempty"`
+	Cost            float64  `json:"cost,omitempty"`
 	SubjectModel    string   `json:"subject_model,omitempty"`
 	JudgeModel      string   `json:"judge_model,omitempty"`
 }
@@ -54,6 +55,7 @@ func MergeResults(h History, results []Result) {
 			Tokens:       r.InputTokens,
 			SubjectModel: r.SubjectModel,
 			JudgeModel:   r.JudgeModel,
+			Cost:         r.Cost,
 		}
 		if r.AvgOutputTokens > 0 {
 			v := r.AvgOutputTokens

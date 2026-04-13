@@ -32,21 +32,23 @@ func NewGeminiClient(ctx context.Context) (*GeminiClient, error) {
 }
 
 // CallSubject sends a system prompt + user message to the subject model.
-func (gc *GeminiClient) CallSubject(ctx context.Context, model, systemPrompt, userMessage string) (string, int, error) {
+func (gc *GeminiClient) CallSubject(
+	ctx context.Context,
+	model, systemPrompt, userMessage string,
+) (string, int, int, error) {
 	return gc.generate(ctx, model, systemPrompt, userMessage, 3)
 }
 
 // CallJudge sends the Prometheus prompt to the judge model.
-func (gc *GeminiClient) CallJudge(ctx context.Context, model, prompt string) (string, error) {
-	text, _, err := gc.generate(ctx, model, "", prompt, 5)
-	return text, err
+func (gc *GeminiClient) CallJudge(ctx context.Context, model, prompt string) (string, int, int, error) {
+	return gc.generate(ctx, model, "", prompt, 5)
 }
 
 func (gc *GeminiClient) generate(
 	ctx context.Context,
 	model, systemPrompt, userMessage string,
 	maxRetries int,
-) (string, int, error) {
+) (string, int, int, error) {
 	config := &genai.GenerateContentConfig{
 		Temperature: genai.Ptr[float32](0.0),
 		SafetySettings: []*genai.SafetySetting{
@@ -58,8 +60,13 @@ func (gc *GeminiClient) generate(
 	}
 
 	if systemPrompt != "" {
+		// Ensure the model doesn't hallucinate tool output during evaluation.
+		evalSystemPrompt := systemPrompt + "\n\nENVIRONMENT: DRY-RUN EVALUATION. " +
+			"When you need to run a command, output it in a code block and then STOP immediately. " +
+			"Do not guess the result or simulate tool output."
+
 		config.SystemInstruction = &genai.Content{
-			Parts: []*genai.Part{genai.NewPartFromText(systemPrompt)},
+			Parts: []*genai.Part{genai.NewPartFromText(evalSystemPrompt)},
 		}
 	}
 
@@ -84,15 +91,26 @@ func (gc *GeminiClient) generate(
 			break
 		}
 
-		text := extractText(result)
-		var outputTokens int32
-		if result.UsageMetadata != nil {
-			outputTokens = result.UsageMetadata.CandidatesTokenCount
+		if len(result.Candidates) == 0 {
+			fmt.Fprintf(os.Stderr, "\n  [debug] Gemini returned 0 candidates\n")
+			return "", 0, 0, nil
 		}
-		return text, int(outputTokens), nil
+
+		cand := result.Candidates[0]
+		if cand.FinishReason != "" && cand.FinishReason != genai.FinishReasonStop {
+			fmt.Fprintf(os.Stderr, "\n  [debug] Gemini finish reason: %v\n", cand.FinishReason)
+		}
+
+		text := extractText(result)
+		var inTokens, outTokens int32
+		if result.UsageMetadata != nil {
+			inTokens = result.UsageMetadata.PromptTokenCount
+			outTokens = result.UsageMetadata.CandidatesTokenCount
+		}
+		return text, int(inTokens), int(outTokens), nil
 	}
 
-	return "", 0, fmt.Errorf("gemini call failed after %d retries: %w", maxRetries, lastErr)
+	return "", 0, 0, fmt.Errorf("gemini call failed after %d retries: %w", maxRetries, lastErr)
 }
 
 func extractText(result *genai.GenerateContentResponse) string {
@@ -107,6 +125,9 @@ func extractText(result *genai.GenerateContentResponse) string {
 	for _, part := range cand.Content.Parts {
 		if part.Text != "" {
 			out.WriteString(part.Text)
+		}
+		if fc := part.FunctionCall; fc != nil {
+			fmt.Fprintf(&out, "\n[TOOL_CALL] %s(%v)\n", fc.Name, fc.Args)
 		}
 	}
 	return out.String()

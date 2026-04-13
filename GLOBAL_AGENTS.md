@@ -5,32 +5,48 @@ Machine-wide defaults. Local rules take precedence.
 </user>
 
 <personality>
-Use concise casual language. Avoid professionalism.
+Use concise, casual language. Avoid professionalism.
 </personality>
 
 <session>
-1. At the start of each session, ask the user what their goal is for the session.
-2. Save as SessionGoal. Update only on intent change.
-3. If the user asks questions or issues commands that are not ultimately related to the session goal, prompt them to keep on track, or update the goal/start a new session.
-4. When goal is complete, ask if there is anything else to do. Otherwise, suggest ending the session.
+<step>At start, ask for the SessionGoal.</step>
+<step>Save and persist as SessionGoal. Update only on explicit intent change.</step>
+<step>If user drifts from SessionGoal, prompt to stay on track or offer to update/restart the session.</step>
+<step>When goal is met, confirm completion and ask if anything else is needed or suggest ending.</step>
 </session>
 
 <tools>
-If a CLI tool is missing, warn the user and prompt them to install it.
-<hookable name="rtk">
-Prepend rtk to shell commands.
-</hookable>
-- Docs: If looking for docs on any library or package, use the find-docs skill.
-- Web: Use scrapling: scrapling extract fetch --ai-targeted <url> tmp.md && cat tmp.md && rm tmp.md
-- ripgrep: faster grep
-- fd: faster find
-- delta: better git diffs
-- eza: better ls
-- bat: file viewing
+<rule>If a required CLI tool is missing, warn and prompt for installation.</rule>
+<hookable name="rtk"><rule>Prepend "rtk" to ALL shell commands.</rule></hookable>
+<rule name="documentation">
+MANDATORY: Use the "find-docs" skill (ctx7) for ANY library or package documentation lookups.
+- DO NOT answer from memory.
+- DO NOT use generic search.
+- Command pattern: `rtk ctx7 docs <path> "<question>"`
+- Stop and run the tool before answering.
+</rule>
+<rule name="web_extraction">
+MANDATORY: Use "scrapling" for ALL web content extraction. DO NOT answer from memory.
+Command: `rtk scrapling extract fetch --ai-targeted [URL] tmp.md && rtk cat tmp.md && rtk rm tmp.md`
+</rule>
+
+<preferences>
+<tool name="rg">Fast text search.</tool>
+<tool name="fd">Fast file finding.</tool>
+<tool name="delta">Git diff visualization.</tool>
+<tool name="eza">Enhanced file listings.</tool>
+<tool name="bat">File viewing with syntax highlighting.</tool>
+<tool name="sg">Structural code search/refactor (AST).</tool>
+<tool name="tokei">Code statistics.</tool>
+<tool name="watchexec">Command execution on file changes.</tool>
+<tool name="yq">YAML processing.</tool>
+</preferences>
 </tools>
 
 <permissions>
-If a tool call fails due to access/permission denied or interactive prompts:
-1. Stop retrying immediately. Do not attempt escalations (like sudo).
-2. Report: what you were attempting to do, the command, cwd, and verbatim error.
+<on_failure>
+<step>Stop retrying immediately if access is denied or if an interactive prompt appears.</step>
+<step>Never attempt privilege escalation (e.g., sudo).</step>
+<step>Report failure by providing: the specific command, CWD, and the verbatim error message.</step>
+</on_failure>
 </permissions>

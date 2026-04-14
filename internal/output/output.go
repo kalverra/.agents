@@ -47,6 +47,26 @@ func Write(command string, data any, humanFn func()) {
 	}
 }
 
+// WriteIndent is like Write but emits indented JSON in AI mode for easier reading.
+func WriteIndent(command string, data any, humanFn func()) {
+	if jsonMode {
+		out, err := json.MarshalIndent(envelope{
+			Status:  "ok",
+			Command: command,
+			Data:    data,
+		}, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: encoding JSON: %v\n", err)
+			return
+		}
+		fmt.Println(string(out))
+		return
+	}
+	if humanFn != nil {
+		humanFn()
+	}
+}
+
 // Printf prints to stdout; suppressed in JSON mode.
 func Printf(format string, a ...any) {
 	if !jsonMode {

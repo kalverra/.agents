@@ -23,6 +23,15 @@ func TestLoadEnv(t *testing.T) {
 	assert.Equal(t, "debug", cfg.LogLevel)
 }
 
+func TestLoadEnv_Todoist(t *testing.T) {
+	t.Setenv("TODOIST_API_TOKEN", "secret")
+	t.Setenv("TODOIST_REST_BASE", "https://example.test/api/v1")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "secret", cfg.TodoistAPIToken)
+	assert.Equal(t, "https://example.test/api/v1", cfg.TodoistRESTBase)
+}
+
 func TestLoadFlags(t *testing.T) {
 	t.Parallel()
 

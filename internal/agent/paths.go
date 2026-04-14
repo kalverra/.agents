@@ -47,20 +47,6 @@ func HookSettingsPath(a Agent) string {
 	}
 }
 
-// HookKey returns the JSON key under "hooks" for each agent's settings.
-func HookKey(a Agent) string {
-	switch a {
-	case Claude:
-		return "PreToolUse"
-	case Gemini, Antigravity:
-		return "BeforeTool"
-	case Cursor:
-		return "preToolUse"
-	default:
-		return ""
-	}
-}
-
 // SkillsDest returns the directory where skills are copied for the agent.
 // Returns empty string for agents that don't need skill copies (e.g. Gemini uses ~/.agents/skills/).
 func SkillsDest(a Agent) string {

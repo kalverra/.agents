@@ -19,10 +19,10 @@ Located in `skills/`
 
 <style>
 - Use zerolog for all logging. Logging is not user output, it is only for debugging.
+- When an official Go package doesn't exist to write a client to an API, use resty.
 - Each Go command should utilize the `--ai-output` flag to format output for consumption by LLMs.
 - AI output uses a consistent JSON envelope: `{"status":"ok","command":"<name>","data":<payload>}`.
 - Use `output.Write(command, data, func() {...})` to cleanly handle both JSON and human output paths in one call without branching.
-- `eval --compact` strips verbose iteration data for fewer tokens.
 </style>
 
 <docs>
@@ -33,4 +33,7 @@ Use ctx7 docs <path> <question>.
 - Cursor: /websites/cursor
 - Antigravity: /websites/antigravity
 - zerolog: /rs/zerolog
+- todoist API: /websites/developer_todoist_api_v1
+- resty: /go-resty/docs
+- go-github: /google/go-github
 </docs>

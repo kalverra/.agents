@@ -379,14 +379,35 @@ func (inst *Installer) installHooksForAgent(a Agent, hooksDir string) error {
 	}
 
 	settingsPath := HookSettingsPath(a)
-	hookKey := HookKey(a)
+	if err := mergeHooksFromSnippet(settingsPath, snippet, inst.DryRun); err != nil {
+		return err
+	}
 
-	return mergeHooksIntoSettings(settingsPath, snippet, hookKey, inst.DryRun)
+	if a == Cursor {
+		extraPath := filepath.Join(inst.RepoRoot, "hooks", "cursor-session-start-snippet.json")
+		extraRaw, err := os.ReadFile(extraPath) //nolint:gosec // extraPath is a repo-internal path
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return fmt.Errorf("reading %s: %w", extraPath, err)
+		}
+		extraStr := strings.ReplaceAll(string(extraRaw), "<HOOKS_DIR>", hooksDir)
+		var extraSnippet map[string]any
+		if err := json.Unmarshal([]byte(extraStr), &extraSnippet); err != nil {
+			return fmt.Errorf("parsing session start snippet: %w", err)
+		}
+		if err := mergeHooksFromSnippet(settingsPath, extraSnippet, inst.DryRun); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func mergeHooksIntoSettings(settingsPath string, snippet map[string]any, hookKey string, dryRun bool) error {
+// mergeHooksFromSnippet merges every key under snippet["hooks"] into the target settings file.
+func mergeHooksFromSnippet(settingsPath string, snippet map[string]any, dryRun bool) error {
 	if dryRun {
-		output.Printf("[dry-run] merge hooks into %s (key: %s)\n", settingsPath, hookKey)
+		output.Printf("[dry-run] merge hooks into %s\n", settingsPath)
 		return nil
 	}
 
@@ -413,28 +434,32 @@ func mergeHooksIntoSettings(settingsPath string, snippet map[string]any, hookKey
 		existing["hooks"] = hooksSection
 	}
 
-	existingEntries, _ := hooksSection[hookKey].([]any)
-
 	snippetHooks, _ := snippet["hooks"].(map[string]any)
-	newEntries, _ := snippetHooks[hookKey].([]any)
+	for hookKey, newVal := range snippetHooks {
+		newEntries, ok := newVal.([]any)
+		if !ok {
+			continue
+		}
+		existingEntries, _ := hooksSection[hookKey].([]any)
 
-	for _, newEntry := range newEntries {
-		newID := extractMatchField(newEntry)
-		replaced := false
-		for i, old := range existingEntries {
-			oldID := extractMatchField(old)
-			if oldID != "" && oldID == newID {
-				existingEntries[i] = newEntry
-				replaced = true
-				break
+		for _, newEntry := range newEntries {
+			newID := extractMatchField(newEntry)
+			replaced := false
+			for i, old := range existingEntries {
+				oldID := extractMatchField(old)
+				if oldID != "" && oldID == newID {
+					existingEntries[i] = newEntry
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
+				existingEntries = append(existingEntries, newEntry)
 			}
 		}
-		if !replaced {
-			existingEntries = append(existingEntries, newEntry)
-		}
-	}
 
-	hooksSection[hookKey] = existingEntries
+		hooksSection[hookKey] = existingEntries
+	}
 
 	out, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {

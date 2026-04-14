@@ -15,6 +15,10 @@ import (
 type Config struct {
 	LogLevel string `mapstructure:"log_level"`
 	AIOutput bool   `mapstructure:"ai_output"`
+
+	TodoistAPIToken string `mapstructure:"todoist_api_token"`
+	// TodoistRESTBase overrides the Todoist API v1 base URL (default https://api.todoist.com/api/v1). Env: TODOIST_REST_BASE.
+	TodoistRESTBase string `mapstructure:"todoist_rest_base"`
 }
 
 const (

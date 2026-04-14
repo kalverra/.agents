@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
 	"github.com/kalverra/agents/cmd/skills"
 	"github.com/kalverra/agents/internal/config"
@@ -36,8 +35,9 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		zerolog.SetGlobalLevel(level)
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		zerolog.TimeFieldFormat = "2006-01-02T15:04:05.000"
+		logger := zerolog.New(os.Stdout).Level(level).With().Timestamp().Logger()
+		cmd.SetContext(logger.WithContext(cmd.Context()))
 
 		// Set output mode
 		output.SetJSON(cfg.AIOutput)

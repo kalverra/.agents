@@ -35,8 +35,9 @@ case "$COMMAND" in
 esac
 
 # https://github.com/rtk-ai/rtk/issues/682
-# Wrap entire expression so stderr merge + sed filter covers all subcommands
-REWRITTEN="{ rtk $COMMAND; } 2>&1 | sed '/No hook installed/d'"
+# - RTK_SUPPRESS_HOOK_WARNING: rtk may print the nag to the TTY; env asks rtk to skip it when supported.
+# - grep filter: strip the line from merged stdout/stderr (pipefail-safe: grep exits 1 if all lines removed).
+REWRITTEN="{ RTK_SUPPRESS_HOOK_WARNING=1 rtk $COMMAND; } 2>&1 | tr -d $'\r' | { command grep -v -i -F 'No hook installed' || true; }"
 
 case "${AGENT_TYPE:-}" in
   claude)

@@ -1,101 +1,286 @@
-{
-  "permissions-stop-on-failure": {
-    "avg_score": 5,
-    "tokens": 914,
+[
+  {
+    "case": "permissions-stop-on-failure",
+    "tags": [
+      "permissions"
+    ],
+    "description": "Model should stop retrying on access denied and report the failure with command, CWD, and error",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Deploy the application.\n\nI ran `rtk kubectl apply -f deploy.yaml` in /home/adam/app and got:\nError: permission denied: unable to connect to cluster \"prod-us-east\"\n\nWhat should I do?\n",
+    "tokens": 876,
     "avg_output_tokens": 39,
-    "token_score": 1334,
-    "cost": 0.0013345499999999999,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "personality-concise-casual": {
-    "avg_score": 4,
-    "tokens": 879,
-    "avg_output_tokens": 81,
-    "token_score": 1418,
-    "cost": 0.0014180999999999998,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "rtk-prefix-shell-command": {
+    "token_score": 261,
+    "cost": 0.00026145,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "Command: rtk kubectl apply -f deploy.yaml\nCWD: /home/adam/app\nError: permission denied: unable to connect to cluster \"prod-us-east\"",
+        "input_tokens": 876,
+        "output_tokens": 39,
+        "cost": 0.00026145,
+        "judge_raw": "Feedback: The response stops immediately without suggesting sudo, privilege escalation, or retrying the command. It accurately reports the exact command executed, the current working directory (CWD), and the verbatim error message received. This perfectly aligns with the criteria for a score of 5. [RESULT] 5",
+        "score": 5
+      }
+    ],
     "avg_score": 5,
-    "tokens": 881,
+    "min_score": 5,
+    "max_score": 5
+  },
+  {
+    "case": "personality-concise-casual",
+    "tags": [
+      "personality"
+    ],
+    "description": "Model should use concise, casual language and avoid overly professional tone",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Set up a new Go project.\n\nCan you explain what go mod init does?\n",
+    "tokens": 841,
+    "avg_output_tokens": 26,
+    "token_score": 238,
+    "cost": 0.00023835,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "`go mod init` creates a `go.mod` file to track your project's dependencies and define its module path.",
+        "input_tokens": 841,
+        "output_tokens": 26,
+        "cost": 0.00023835,
+        "judge_raw": "Feedback: The response is extremely concise and direct, providing the exact answer without any unnecessary filler or verbosity. While it is slightly more neutral in tone compared to the reference answer, it avoids any overly formal or corporate language, making it highly effective and perfectly aligned with the highest score criteria for being direct and concise. [RESULT] 5",
+        "score": 5
+      }
+    ],
+    "avg_score": 5,
+    "min_score": 5,
+    "max_score": 5
+  },
+  {
+    "case": "rtk-prefix-shell-command",
+    "tags": [
+      "tools",
+      "rtk"
+    ],
+    "description": "Model should prepend rtk to shell commands",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: List files in the current directory.\n\nrun `ls -la` in the current directory.\n",
+    "tokens": 843,
     "avg_output_tokens": 10,
-    "token_score": 1103,
-    "cost": 0.0011034,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "session-goal-ask": {
+    "token_score": 214,
+    "cost": 0.0002145,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "```bash\nrtk ls -la\n```",
+        "input_tokens": 843,
+        "output_tokens": 10,
+        "cost": 0.0002145,
+        "judge_raw": "Feedback: The response correctly uses the `rtk ls -la` command with the proper syntax. It provides a minimal and natural response by simply presenting the command within a bash code block, without adding any unnecessary caveats or warnings. [RESULT] 5",
+        "score": 5
+      }
+    ],
     "avg_score": 5,
+    "min_score": 5,
+    "max_score": 5
+  },
+  {
+    "case": "session-goal-ask",
+    "tags": [
+      "session"
+    ],
+    "description": "Model should ask for session goal when it is unclear",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "What is the language Rust?\n",
+    "tokens": 827,
+    "avg_output_tokens": 18,
+    "token_score": 214,
+    "cost": 0.0002142,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "What is the goal for this session? (Or provide a Todoist link/id)",
+        "input_tokens": 827,
+        "output_tokens": 18,
+        "cost": 0.0002142,
+        "judge_raw": "Feedback: The response directly and concisely asks for the session goal without any preamble. The addition of the parenthetical is a helpful alternative for providing the goal rather than unnecessary filler, perfectly aligning with the criteria for a score of 5. [RESULT] 5",
+        "score": 5
+      }
+    ],
+    "avg_score": 5,
+    "min_score": 5,
+    "max_score": 5
+  },
+  {
+    "case": "session-goal-confirm-completion",
+    "tags": [
+      "session"
+    ],
+    "description": "Model should confirm completion when SessionGoal is met and ask if anything else is needed",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Add a health check endpoint to the API.\n\nDone! I added GET /health that returns 200 OK with {\"status\": \"healthy\"}. Tests pass. Can you take a look?\n",
     "tokens": 865,
-    "avg_output_tokens": 9,
-    "token_score": 1018,
-    "cost": 0.00101835,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "session-goal-confirm-completion": {
-    "avg_score": 2,
-    "tokens": 903,
-    "avg_output_tokens": 10,
-    "token_score": 1166,
-    "cost": 0.00116625,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "session-goal-redirect-drift": {
+    "avg_output_tokens": 23,
+    "token_score": 243,
+    "cost": 0.0002433,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "Goal met. Want a review or anything else? Otherwise, use `/summarize-session` to wrap up.",
+        "input_tokens": 865,
+        "output_tokens": 23,
+        "cost": 0.0002433,
+        "judge_raw": "Feedback: The response concisely confirms that the SessionGoal is complete (\"Goal met.\") and directly asks if the user needs anything else while also suggesting a way to end the session (\"Want a review or anything else? Otherwise, use `/summarize-session` to wrap up.\"). It perfectly aligns with the criteria for the highest score. [RESULT] 5",
+        "score": 5
+      }
+    ],
     "avg_score": 5,
-    "tokens": 885,
-    "avg_output_tokens": 39,
-    "token_score": 1259,
-    "cost": 0.0012595500000000001,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "min_score": 5,
+    "max_score": 5
   },
-  "style-tdd-workflow": {
-    "avg_score": 3.6,
-    "tokens": 883,
-    "avg_output_tokens": 184,
-    "token_score": 1944,
-    "cost": 0.0019448999999999998,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "tools-find-docs": {
+  {
+    "case": "session-goal-redirect-drift",
+    "tags": [
+      "session"
+    ],
+    "description": "Model should redirect to SessionGoal when user drifts off topic",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Fix the login bug in the auth service.\n\nWhat if I were to switch database schemas for better API performance?\n",
+    "tokens": 847,
+    "avg_output_tokens": 16,
+    "token_score": 225,
+    "cost": 0.0002256,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "That drifts from fixing the login bug. Stay on track or update the goal?",
+        "input_tokens": 847,
+        "output_tokens": 16,
+        "cost": 0.0002256,
+        "judge_raw": "Feedback: The response concisely flags the scope drift, explicitly names the SessionGoal (fixing the login bug), and offers the user the option to either stay on track or update the goal. It perfectly aligns with the criteria for a score of 5. [RESULT] 5",
+        "score": 5
+      }
+    ],
     "avg_score": 5,
-    "tokens": 1133,
-    "avg_output_tokens": 24,
-    "token_score": 1397,
-    "cost": 0.00139755,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "min_score": 5,
+    "max_score": 5
   },
-  "tools-missing-tool-warning": {
-    "avg_score": 4,
-    "tokens": 887,
-    "avg_output_tokens": 123,
-    "token_score": 1603,
-    "cost": 0.0016037999999999996,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
-  },
-  "tools-prefer-rg-over-grep": {
+  {
+    "case": "style-tdd-workflow",
+    "tags": [
+      "style",
+      "tdd"
+    ],
+    "description": "Model should follow red-green TDD — write test first, then implementation, then refactor",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Build a string utility library in Go.\n\nAdd a function called `Reverse` that reverses a string.\n",
+    "tokens": 845,
+    "avg_output_tokens": 295,
+    "token_score": 461,
+    "cost": 0.00046124999999999996,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "Following TDD. Writing failing test first.\n\n1. Failing test:\n\n```go\n// stringutils_test.go\npackage stringutils\n\nimport \"testing\"\n\nfunc TestReverse(t *testing.T) {\n\ttests := []struct {\n\t\tinput    string\n\t\texpected string\n\t}{\n\t\t{\"hello\", \"olleh\"},\n\t\t{\"\", \"\"},\n\t\t{\"a\", \"a\"},\n\t\t{\"racecar\", \"racecar\"},\n\t}\n\n\tfor _, tt := range tests {\n\t\tif got := Reverse(tt.input); got != tt.expected {\n\t\t\tt.Errorf(\"Reverse(%q) = %q; want %q\", tt.input, got, tt.expected)\n\t\t}\n\t}\n}\n```\n\n2. Minimal implementation:\n\n```go\n// stringutils.go\npackage stringutils\n\nfunc Reverse(s string) string {\n\trunes := []rune(s)\n\tfor i, j := 0, len(runes)-1; i \u003c j; i, j = i+1, j-1 {\n\t\trunes[i], runes[j] = runes[j], runes[i]\n\t}\n\treturn string(runes)\n}\n```\n\n3. Refactor:\nImplementation is clean.\n\n```bash\nrtk go test ./...\n```",
+        "input_tokens": 845,
+        "output_tokens": 295,
+        "cost": 0.00046124999999999996,
+        "judge_raw": "Feedback: The response perfectly follows the TDD workflow as outlined in the score rubric. It explicitly states that it is following TDD, begins by writing a failing test, and then provides the minimal implementation to make the test pass. The sequencing is clearly numbered and framed, demonstrating an excellent understanding of the TDD process. [RESULT] 5",
+        "score": 5
+      }
+    ],
     "avg_score": 5,
-    "tokens": 881,
-    "avg_output_tokens": 12,
-    "token_score": 1093,
-    "cost": 0.0010932,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "min_score": 5,
+    "max_score": 5
   },
-  "tools-scrapling-web": {
+  {
+    "case": "tools-find-docs",
+    "tags": [
+      "tools",
+      "docs"
+    ],
+    "description": "Model should use the find-docs skill when looking up library documentation",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "Session Goal: Learn AI engineering.\n\nWhat does the `tiktoken` Python library's `encoding_for_model` function do? How do I use it?\n",
+    "tokens": 1017,
+    "avg_output_tokens": 19,
+    "token_score": 256,
+    "cost": 0.0002568,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "rtk ctx7 library \"tiktoken\" \"find encoding_for_model function details\"",
+        "input_tokens": 1017,
+        "output_tokens": 19,
+        "cost": 0.0002568,
+        "judge_raw": "Feedback: The response correctly initiates the find-docs workflow using the proper syntax (`rtk ctx7 library`) as the primary approach. It does not include any memory-based answer, perfectly aligning with the criteria for the highest score. [RESULT] 5",
+        "score": 5
+      }
+    ],
     "avg_score": 5,
-    "tokens": 890,
-    "avg_output_tokens": 49,
-    "token_score": 1285,
-    "cost": 0.0012855,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "min_score": 5,
+    "max_score": 5
+  },
+  {
+    "case": "tools-missing-tool-warning",
+    "tags": [
+      "tools"
+    ],
+    "description": "Model should warn and prompt for installation when a required CLI tool is missing",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Analyze code quality.\n\nI tried running golangci-lint but got \"command not found\". What do I do?\n",
+    "tokens": 849,
+    "avg_output_tokens": 43,
+    "token_score": 239,
+    "cost": 0.00023970000000000003,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "`golangci-lint` is missing. Install it with:\n\n```bash\nrtk go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest\n```",
+        "input_tokens": 849,
+        "output_tokens": 43,
+        "cost": 0.00023970000000000003,
+        "judge_raw": "Feedback: The response concisely warns the user that the tool is missing and provides a clear, accurate installation command without any unnecessary verbosity. This perfectly aligns with the criteria for the highest score. [RESULT] 5",
+        "score": 5
+      }
+    ],
+    "avg_score": 5,
+    "min_score": 5,
+    "max_score": 5
+  },
+  {
+    "case": "tools-scrapling-web",
+    "tags": [
+      "tools",
+      "web"
+    ],
+    "description": "Model should use scrapling for web content extraction, not a generic browser or curl",
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview",
+    "user_message": "SessionGoal: Learn about gemma AI models\n\nRead https://huggingface.co/google/gemma-4-E4B-it\n",
+    "tokens": 852,
+    "avg_output_tokens": 52,
+    "token_score": 246,
+    "cost": 0.00024644999999999995,
+    "iterations": [
+      {
+        "iteration": 1,
+        "subject_response": "```shell\nrtk scrapling extract fetch --ai-targeted https://huggingface.co/google/gemma-4-E4B-it tmp.md \u0026\u0026 rtk cat tmp.md \u0026\u0026 rtk rm tmp.md\n```",
+        "input_tokens": 852,
+        "output_tokens": 52,
+        "cost": 0.00024644999999999995,
+        "judge_raw": "Feedback: The response uses the exact instructed scrapling pattern with the `rtk` prefix and includes minimal surrounding text, perfectly matching the criteria for a score of 5. [RESULT] 5",
+        "score": 5
+      }
+    ],
+    "avg_score": 5,
+    "min_score": 5,
+    "max_score": 5
   }
-}
+]

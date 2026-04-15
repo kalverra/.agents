@@ -6,11 +6,8 @@ import (
 	"strings"
 )
 
-var sectionRe = regexp.MustCompile(
-	`(?m)^<hookable name="\w+">\s*\n` +
-		`(?:.*?\n)*?` +
-		`</hookable>\s*\n`,
-)
+// Inline and multiline blocks; (?s) so . matches newlines between tags.
+var sectionRe = regexp.MustCompile(`(?s)<hookable name="\w+">.*?</hookable>\s*`)
 
 var openTagRe = regexp.MustCompile(`^<hookable name="\w+">$`)
 var closeTagRe = regexp.MustCompile(`^</hookable>$`)

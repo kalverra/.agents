@@ -51,6 +51,18 @@ middle
 bottom
 `,
 		},
+		{
+			name: "inline single-line block removed (matches GLOBAL_AGENTS.md format)",
+			input: `<tools>
+<hookable name="rtk"><rule>Prepend "rtk" to ALL shell commands.</rule></hookable>
+<rule name="documentation">docs</rule>
+</tools>
+`,
+			want: `<tools>
+<rule name="documentation">docs</rule>
+</tools>
+`,
+		},
 	}
 
 	for _, tt := range tests {

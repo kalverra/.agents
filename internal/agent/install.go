@@ -461,6 +461,13 @@ func mergeHooksFromSnippet(settingsPath string, snippet map[string]any, dryRun b
 		hooksSection[hookKey] = existingEntries
 	}
 
+	// Cursor expects ~/.cursor/hooks.json to declare schema version (flat hook entries).
+	if filepath.Base(settingsPath) == "hooks.json" {
+		if _, ok := existing["version"]; !ok {
+			existing["version"] = 1
+		}
+	}
+
 	out, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
 		return err

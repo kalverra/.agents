@@ -2,15 +2,9 @@
   "hooks": {
     "preToolUse": [
       {
-        "matcher": "run_shell_command",
-        "hooks": [
-          {
-            "type": "command",
-            "name": "rtk-prepend",
-            "command": "<HOOKS_DIR>/cursor-rtk.sh",
-            "timeout": 5000
-          }
-        ]
+        "type": "command",
+        "command": "<HOOKS_DIR>/cursor-rtk.sh",
+        "matcher": "run_shell_command"
       }
     ]
   }

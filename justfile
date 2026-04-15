@@ -14,6 +14,7 @@ lint:
 install:
     go build -o agents .
     ./agents install
+    go install .
 
 eval *args:
     go run . eval {{args}}

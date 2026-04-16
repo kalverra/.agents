@@ -34,9 +34,9 @@ jobs:
         working-directory: pr-repo
         run: |
           go run . eval-compare \
-            ../main-repo/scripts/eval/eval_history.json \
-            scripts/eval/eval_history.json \
-            results.md
+            eval/eval_history.json \
+            results.md \
+            --main ../main-repo/eval/eval_history.json
 
       - name: Post check results
         if: always()

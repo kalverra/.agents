@@ -4,7 +4,7 @@
       {
         "type": "command",
         "command": "<HOOKS_DIR>/cursor-rtk.sh",
-        "matcher": "run_shell_command"
+        "matcher": "Shell"
       }
     ]
   }

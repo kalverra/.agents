@@ -20,10 +20,12 @@ var installCmd = &cobra.Command{
 		targetsStr, _ := cmd.Flags().GetString("targets")
 		noHooks, _ := cmd.Flags().GetBool("no-hooks")
 		noSkills, _ := cmd.Flags().GetBool("no-skills")
+		yes, _ := cmd.Flags().GetBool("yes")
 
 		inst := &agent.Installer{
 			RepoRoot:   repoRoot(),
 			DryRun:     dryRun,
+			Yes:        yes,
 			UseCopy:    useCopy,
 			Verbose:    verbose,
 			WithHooks:  !noHooks,
@@ -49,6 +51,7 @@ func init() {
 		String("targets", "", "Comma-separated: claude,gemini,antigravity,cursor (default: detected only)")
 	installCmd.Flags().Bool("no-hooks", false, "Skip hook deploy and settings merge")
 	installCmd.Flags().Bool("no-skills", false, "Skip skill directory copies")
+	installCmd.Flags().BoolP("yes", "y", false, "Skip install confirmation prompt")
 	rootCmd.AddCommand(installCmd)
 }
 

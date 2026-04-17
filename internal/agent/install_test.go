@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestMergeHooksFromSnippet_CursorSnippetIsFlatPreToolUse(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, mergeHooksFromSnippet(settingsPath, snippet, false))
+	require.NoError(t, mergeHooksFromSnippet(settingsPath, snippet))
 
 	//nolint:gosec // G304: path is under t.TempDir(), not user-controlled input
 	data, err := os.ReadFile(settingsPath)
@@ -89,4 +90,92 @@ func TestCursorHooksSnippetOnDiskIsFlat(t *testing.T) {
 		)
 		require.NotEmpty(t, entry["command"])
 	}
+}
+
+func TestSkillDestPlan_ListsRemovedVersusRepo(t *testing.T) {
+	t.Parallel()
+
+	destRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(destRoot, "keep"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(destRoot, "drop"), 0o750))
+
+	repoSkillPath := filepath.Join(t.TempDir(), "nested", "keep")
+	inst := &Installer{}
+	p, err := inst.skillDestPlan("test", destRoot, []string{repoSkillPath})
+	require.NoError(t, err)
+	require.Equal(t, "test", p.Label)
+	require.Equal(t, destRoot, p.DestRoot)
+	require.Equal(t, []string{"drop"}, p.Removed)
+	require.Equal(t, []string{"keep"}, p.Installed)
+}
+
+func TestComputeSelection_ForcedClaude(t *testing.T) {
+	t.Parallel()
+
+	inst := &Installer{
+		Targets: ParseTargets("claude"),
+	}
+	detected := map[Agent]bool{Claude: false}
+	sel := computeSelection(inst, detected, true)
+	require.True(t, sel.DidClaude)
+}
+
+func TestComputeSelection_AntigravityNoStripWhenHooksKept(t *testing.T) {
+	t.Parallel()
+
+	inst := &Installer{
+		WithHooks: true,
+	}
+	detected := map[Agent]bool{
+		Gemini:      true,
+		Antigravity: true,
+	}
+	sel := computeSelection(inst, detected, false)
+	require.True(t, sel.DidGemini)
+	require.True(t, sel.DidAntigravity)
+	require.False(t, sel.StripGeminiMarkdown)
+}
+
+func TestCopySkills_RemovesExtraAndCopiesRepo(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	skillA := filepath.Join(repoRoot, "alpha")
+	require.NoError(t, os.MkdirAll(skillA, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(skillA, "SKILL.md"), []byte("# a"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(skillA, "extra.txt"), []byte("x"), 0o600))
+
+	dest := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, "orphan"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dest, "loose.txt"), []byte("y"), 0o600))
+
+	inst := &Installer{}
+	require.NoError(t, inst.copySkills([]string{skillA}, dest))
+
+	entries, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	require.Equal(t, []string{"alpha"}, names)
+
+	got, err := os.ReadFile(filepath.Join(dest, "alpha", "SKILL.md")) //nolint:gosec // test temp path
+	require.NoError(t, err)
+	require.Equal(t, "# a", string(got))
+}
+
+func TestCopySkills_EmptyRepoClearsDestination(t *testing.T) {
+	t.Parallel()
+
+	dest := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, "gone"), 0o750))
+
+	inst := &Installer{}
+	require.NoError(t, inst.copySkills(nil, dest))
+
+	entries, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Empty(t, entries)
 }

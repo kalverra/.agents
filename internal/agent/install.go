@@ -18,6 +18,7 @@ import (
 type Installer struct {
 	RepoRoot   string
 	DryRun     bool
+	Yes        bool
 	UseCopy    bool
 	Verbose    bool
 	WithHooks  bool
@@ -27,10 +28,11 @@ type Installer struct {
 
 // InstallReport summarizes what was deployed.
 type InstallReport struct {
-	Agents []string `json:"agents"`
-	Hooks  bool     `json:"hooks"`
-	Skills bool     `json:"skills"`
-	DryRun bool     `json:"dry_run"`
+	Agents []string           `json:"agents"`
+	Hooks  bool               `json:"hooks"`
+	Skills bool               `json:"skills"`
+	DryRun bool               `json:"dry_run"`
+	Plan   *InstallPlanReport `json:"plan,omitempty"`
 }
 
 // Install runs the full deployment for all targeted agents.
@@ -41,24 +43,48 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, fmt.Errorf("missing source file: %s", src)
 	}
 
+	detected := DetectAll(inst.Verbose)
+	forcing := inst.Targets != nil
+	sel := computeSelection(inst, detected, forcing)
+
+	if !sel.anyAgent() {
+		output.Println("Nothing installed. Try: agents discover")
+		output.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor")
+		return nil, fmt.Errorf("no agents installed")
+	}
+
+	skillDirs := inst.repoSkillDirs()
+	plan, err := inst.buildInstallPlan(sel, skillDirs)
+	if err != nil {
+		return nil, err
+	}
+
+	report := installReportFromSelection(inst, sel)
+	if inst.DryRun {
+		printInstallPlan(plan, inst.WithHooks, inst.WithSkills)
+		report.DryRun = true
+		report.Plan = planToReport(plan)
+		return report, nil
+	}
+
+	if err := inst.confirmInstall(plan, inst.WithHooks, inst.WithSkills); err != nil {
+		return nil, err
+	}
+
 	var hooksDir string
 	if inst.WithHooks {
-		var err error
 		hooksDir, err = inst.deployHookScripts()
 		if err != nil {
 			return nil, fmt.Errorf("deploying hook scripts: %w", err)
 		}
 	}
 
-	detected := DetectAll(inst.Verbose)
-	forcing := inst.Targets != nil
-
 	didClaude, err := inst.installClaude(src, hooksDir, detected, forcing)
 	if err != nil {
 		return nil, err
 	}
 
-	didGemini, didAntigravity, err := inst.installGemini(src, hooksDir, detected, forcing)
+	didGemini, _, err := inst.installGemini(src, hooksDir, detected, forcing)
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +94,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
-	if !didClaude && !didGemini && !didCursor {
-		output.Println("Nothing installed. Try: agents discover")
-		output.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor")
-		return nil, fmt.Errorf("no agents installed")
-	}
-
-	if err := inst.installSkills(didClaude, didCursor, didAntigravity); err != nil {
+	if err := inst.installSkills(didClaude, didCursor, didGemini, skillDirs); err != nil {
 		return nil, err
 	}
 
@@ -82,25 +102,28 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
+	return report, nil
+}
+
+func installReportFromSelection(inst *Installer, sel installSelection) *InstallReport {
 	report := &InstallReport{
 		Hooks:  inst.WithHooks,
 		Skills: inst.WithSkills,
-		DryRun: inst.DryRun,
+		DryRun: false,
 	}
-	if didClaude {
+	if sel.DidClaude {
 		report.Agents = append(report.Agents, "claude")
 	}
-	if didGemini {
+	if sel.DidGemini {
 		report.Agents = append(report.Agents, "gemini")
 	}
-	if didAntigravity {
+	if sel.DidAntigravity {
 		report.Agents = append(report.Agents, "antigravity")
 	}
-	if didCursor {
+	if sel.DidCursor {
 		report.Agents = append(report.Agents, "cursor")
 	}
-
-	return report, nil
+	return report
 }
 
 func (inst *Installer) installClaude(src, hooksDir string, detected map[Agent]bool, forcing bool) (bool, error) {
@@ -180,14 +203,12 @@ func (inst *Installer) installCursor(src, hooksDir string, detected map[Agent]bo
 	return true, nil
 }
 
-func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool) error {
+func (inst *Installer) installSkills(didClaude, didCursor, didGemini bool, skillDirs []string) error {
 	if !inst.WithSkills {
 		return nil
 	}
-	skillDirs := inst.repoSkillDirs()
 	if len(skillDirs) == 0 {
-		output.Warnf("skills deploy requested but no skill dirs with SKILL.md; skipping.\n")
-		return nil
+		output.Warnf("no skill directories with SKILL.md in repo; skill destinations will be emptied\n")
 	}
 	if didClaude {
 		if err := inst.copySkills(skillDirs, SkillsDest(Claude)); err != nil {
@@ -199,7 +220,10 @@ func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool) 
 			return err
 		}
 	}
-	if didAntigravity {
+	if didGemini {
+		if err := inst.copySkills(skillDirs, SkillsDest(Gemini)); err != nil {
+			return err
+		}
 		if err := inst.copySkills(skillDirs, SkillsDest(Antigravity)); err != nil {
 			return err
 		}
@@ -208,11 +232,6 @@ func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool) 
 }
 
 func (inst *Installer) deployMarkdown(src, dest string, stripHooks bool) error {
-	if inst.DryRun {
-		output.Printf("[dry-run] write %s (strip_hooks=%v, copy=%v)\n", dest, stripHooks, inst.UseCopy)
-		return nil
-	}
-
 	raw, err := os.ReadFile(src) //nolint:gosec // src is a repo-internal path, not user input
 	if err != nil {
 		return err
@@ -251,14 +270,6 @@ func (inst *Installer) deployMarkdown(src, dest string, stripHooks bool) error {
 }
 
 func (inst *Installer) linkOrCopy(src, dest string) error {
-	if inst.DryRun {
-		verb := "symlink"
-		if inst.UseCopy {
-			verb = "cp"
-		}
-		output.Printf("[dry-run] %s %s -> %s\n", verb, src, dest)
-		return nil
-	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
 		return err
 	}
@@ -289,11 +300,6 @@ func (inst *Installer) linkOrCopy(src, dest string) error {
 
 func (inst *Installer) writeCursorMDC(globalPath string) error {
 	dest := MarkdownDest(Cursor)
-	if inst.DryRun {
-		output.Printf("[dry-run] write %s (frontmatter + GLOBAL_AGENTS.md)\n", dest)
-		return nil
-	}
-
 	raw, err := os.ReadFile(globalPath) //nolint:gosec // globalPath is a repo-internal path, not user input
 	if err != nil {
 		return err
@@ -334,14 +340,7 @@ func (inst *Installer) writeCursorMDC(globalPath string) error {
 func (inst *Installer) deployHookScripts() (string, error) {
 	srcDir := filepath.Join(inst.RepoRoot, "hooks")
 	destDir := HooksDeployDir()
-	scripts := []string{"rtk-prepend.sh", "claude-rtk.sh", "gemini-rtk.sh", "cursor-rtk.sh"}
-
-	if inst.DryRun {
-		for _, s := range scripts {
-			output.Printf("[dry-run] cp %s -> %s\n", filepath.Join(srcDir, s), filepath.Join(destDir, s))
-		}
-		return destDir, nil
-	}
+	scripts := hookScriptNames()
 
 	if err := os.MkdirAll(destDir, 0o750); err != nil {
 		return "", err
@@ -379,7 +378,7 @@ func (inst *Installer) installHooksForAgent(a Agent, hooksDir string) error {
 	}
 
 	settingsPath := HookSettingsPath(a)
-	if err := mergeHooksFromSnippet(settingsPath, snippet, inst.DryRun); err != nil {
+	if err := mergeHooksFromSnippet(settingsPath, snippet); err != nil {
 		return err
 	}
 
@@ -397,7 +396,7 @@ func (inst *Installer) installHooksForAgent(a Agent, hooksDir string) error {
 		if err := json.Unmarshal([]byte(extraStr), &extraSnippet); err != nil {
 			return fmt.Errorf("parsing session start snippet: %w", err)
 		}
-		if err := mergeHooksFromSnippet(settingsPath, extraSnippet, inst.DryRun); err != nil {
+		if err := mergeHooksFromSnippet(settingsPath, extraSnippet); err != nil {
 			return err
 		}
 	}
@@ -405,12 +404,7 @@ func (inst *Installer) installHooksForAgent(a Agent, hooksDir string) error {
 }
 
 // mergeHooksFromSnippet merges every key under snippet["hooks"] into the target settings file.
-func mergeHooksFromSnippet(settingsPath string, snippet map[string]any, dryRun bool) error {
-	if dryRun {
-		output.Printf("[dry-run] merge hooks into %s\n", settingsPath)
-		return nil
-	}
-
+func mergeHooksFromSnippet(settingsPath string, snippet map[string]any) error {
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o750); err != nil {
 		return err
 	}
@@ -529,16 +523,33 @@ func (inst *Installer) copySkills(skillDirs []string, destRoot string) error {
 	if destRoot == "" {
 		return nil
 	}
-	if inst.DryRun {
-		for _, sd := range skillDirs {
-			output.Printf("[dry-run] copytree %s -> %s\n", sd, filepath.Join(destRoot, filepath.Base(sd)))
-		}
-		return nil
+
+	repoNames := make(map[string]struct{}, len(skillDirs))
+	for _, d := range skillDirs {
+		repoNames[filepath.Base(d)] = struct{}{}
 	}
 
 	if err := os.MkdirAll(destRoot, 0o750); err != nil {
 		return err
 	}
+
+	entries, err := os.ReadDir(destRoot)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if _, keep := repoNames[e.Name()]; !keep {
+			if err := os.RemoveAll(filepath.Join(destRoot, e.Name())); err != nil {
+				return fmt.Errorf("removing extra skill %q: %w", e.Name(), err)
+			}
+		}
+	}
+
+	if len(skillDirs) == 0 {
+		output.Successf("Removed all skills under %s\n", destRoot)
+		return nil
+	}
+
 	n := 0
 	for _, sd := range skillDirs {
 		dst := filepath.Join(destRoot, filepath.Base(sd))
@@ -574,9 +585,6 @@ func copyDir(src, dst string) error {
 }
 
 func (inst *Installer) writeLocalMergedGlobal(src string) error {
-	if inst.DryRun {
-		return nil
-	}
 	raw, err := os.ReadFile(src) //nolint:gosec // src is a repo-internal path, not user input
 	if err != nil {
 		return err

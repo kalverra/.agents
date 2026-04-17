@@ -3,14 +3,18 @@ package cmd
 
 import (
 	"context"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"charm.land/fang/v2"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/kalverra/agents/cmd/skills"
 	"github.com/kalverra/agents/internal/config"
@@ -30,13 +34,25 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// Initialize zerolog
+		// Initialize zerolog: stderr only so stdout stays for command/user output.
+		// Human mode: ConsoleWriter (pretty). --ai-output: JSON lines for machines.
 		level, err := zerolog.ParseLevel(cfg.LogLevel)
 		if err != nil {
 			return err
 		}
-		zerolog.TimeFieldFormat = "2006-01-02T15:04:05.000"
-		logger := zerolog.New(os.Stdout).Level(level).With().Timestamp().Logger()
+		zerolog.TimeFieldFormat = time.RFC3339
+		var logOut io.Writer = os.Stderr
+		var logger zerolog.Logger
+		if cfg.AIOutput {
+			logger = zerolog.New(logOut).Level(level).With().Timestamp().Logger()
+		} else {
+			logger = zerolog.New(zerolog.ConsoleWriter{
+				Out:        logOut,
+				TimeFormat: "15:04:05.000",
+				NoColor:    !isatty.IsTerminal(os.Stderr.Fd()),
+			}).Level(level).With().Timestamp().Logger()
+		}
+		log.Logger = logger
 		cmd.SetContext(logger.WithContext(cmd.Context()))
 
 		// Set output mode

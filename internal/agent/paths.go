@@ -48,15 +48,18 @@ func HookSettingsPath(a Agent) string {
 }
 
 // SkillsDest returns the directory where skills are copied for the agent.
-// Returns empty string for agents that don't need skill copies (e.g. Gemini uses ~/.agents/skills/).
+// Gemini CLI and Antigravity each have a skills directory under GeminiConfigDir().
+// Returns empty string for unknown agents.
 func SkillsDest(a Agent) string {
 	switch a {
 	case Claude:
 		return filepath.Join(homeDir(), ".claude", "skills")
 	case Cursor:
 		return filepath.Join(homeDir(), ".cursor", "skills")
+	case Gemini:
+		return filepath.Join(GeminiConfigDir(), "skills")
 	case Antigravity:
-		return filepath.Join(homeDir(), ".gemini", "antigravity", "skills")
+		return filepath.Join(GeminiConfigDir(), "antigravity", "skills")
 	default:
 		return ""
 	}

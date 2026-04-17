@@ -50,7 +50,7 @@ var discoverCmd = &cobra.Command{
 		if g.Detected {
 			g.Context = filepath.Join(geminiDir, "GEMINI.md")
 			g.Hooks = filepath.Join(geminiDir, "settings.json")
-			g.Skills = "~/.agents/skills/"
+			g.Skills = fmt.Sprintf("%s; %s", agent.SkillsDest(agent.Gemini), agent.SkillsDest(agent.Antigravity))
 		}
 		results = append(results, g)
 
@@ -60,7 +60,7 @@ var discoverCmd = &cobra.Command{
 		if a.Detected {
 			a.Context = filepath.Join(geminiDir, "GEMINI.md")
 			a.Hooks = filepath.Join(geminiDir, "settings.json")
-			a.Skills = filepath.Join(home, ".gemini", "antigravity", "skills")
+			a.Skills = fmt.Sprintf("%s; %s", agent.SkillsDest(agent.Gemini), agent.SkillsDest(agent.Antigravity))
 		}
 		results = append(results, a)
 

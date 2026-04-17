@@ -27,11 +27,13 @@ Located in `skills/`
 
 <docs>
 Use ctx7 docs <path> <question>.
+<agents>
 - Claude: /websites/platform_claude_en
 - Gemini API: /websites/ai_google_dev_gemini-api
 - Gemini Go Package: /googleapis/go-genai
 - Cursor: /websites/cursor
 - Antigravity: /websites/antigravity
+</agents>
 - zerolog: /rs/zerolog
 - todoist API: /websites/developer_todoist_api_v1
 - resty: /go-resty/docs

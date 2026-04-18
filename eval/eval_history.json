@@ -1,84 +1,84 @@
 {
   "permissions-stop-on-failure": {
     "avg_score": 5,
-    "tokens": 914,
+    "tokens": 944,
     "avg_output_tokens": 39,
-    "token_score": 1334,
-    "cost": 0.0013345499999999999,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "token_score": 271,
+    "cost": 0.00027165,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "personality-concise-casual": {
-    "avg_score": 4,
-    "tokens": 879,
-    "avg_output_tokens": 81,
-    "token_score": 1418,
-    "cost": 0.0014180999999999998,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "avg_score": 5,
+    "tokens": 909,
+    "avg_output_tokens": 56,
+    "token_score": 270,
+    "cost": 0.00027045,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "rtk-prefix-shell-command": {
     "avg_score": 5,
-    "tokens": 881,
-    "avg_output_tokens": 10,
-    "token_score": 1103,
-    "cost": 0.0011034,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "tokens": 911,
+    "avg_output_tokens": 5,
+    "token_score": 211,
+    "cost": 0.00021195,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "session-goal-ask": {
-    "avg_score": 5,
-    "tokens": 865,
-    "avg_output_tokens": 9,
-    "token_score": 1018,
-    "cost": 0.00101835,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "avg_score": 4,
+    "tokens": 895,
+    "avg_output_tokens": 24,
+    "token_score": 237,
+    "cost": 0.00023730000000000002,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "session-goal-confirm-completion": {
-    "avg_score": 2,
-    "tokens": 903,
-    "avg_output_tokens": 10,
-    "token_score": 1166,
-    "cost": 0.00116625,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "avg_score": 5,
+    "tokens": 933,
+    "avg_output_tokens": 27,
+    "token_score": 249,
+    "cost": 0.0002493,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "session-goal-redirect-drift": {
     "avg_score": 5,
-    "tokens": 885,
-    "avg_output_tokens": 39,
-    "token_score": 1259,
-    "cost": 0.0012595500000000001,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "tokens": 915,
+    "avg_output_tokens": 33,
+    "token_score": 258,
+    "cost": 0.00025815,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "style-tdd-workflow": {
-    "avg_score": 3.6,
-    "tokens": 883,
-    "avg_output_tokens": 184,
-    "token_score": 1944,
-    "cost": 0.0019448999999999998,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "avg_score": 5,
+    "tokens": 913,
+    "avg_output_tokens": 335,
+    "token_score": 508,
+    "cost": 0.00050865,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "tools-find-docs": {
     "avg_score": 5,
-    "tokens": 1133,
-    "avg_output_tokens": 24,
-    "token_score": 1397,
-    "cost": 0.00139755,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "tokens": 1085,
+    "avg_output_tokens": 18,
+    "token_score": 271,
+    "cost": 0.00027165,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "tools-missing-tool-warning": {
-    "avg_score": 4,
-    "tokens": 887,
-    "avg_output_tokens": 123,
-    "token_score": 1603,
-    "cost": 0.0016037999999999996,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "avg_score": 5,
+    "tokens": 917,
+    "avg_output_tokens": 42,
+    "token_score": 247,
+    "cost": 0.00024794999999999993,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   },
   "tools-prefer-rg-over-grep": {
     "avg_score": 5,
@@ -91,11 +91,11 @@
   },
   "tools-scrapling-web": {
     "avg_score": 5,
-    "tokens": 890,
-    "avg_output_tokens": 49,
-    "token_score": 1285,
-    "cost": 0.0012855,
-    "subject_model": "gemini-3.1-flash-lite-preview",
-    "judge_model": "gemini-3-flash-preview"
+    "tokens": 920,
+    "avg_output_tokens": 47,
+    "token_score": 257,
+    "cost": 0.00025770000000000003,
+    "subject_model": "gemini-3-flash-preview",
+    "judge_model": "gemini-3.1-pro-preview"
   }
 }

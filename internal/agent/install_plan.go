@@ -25,6 +25,7 @@ type InstallPlanReport struct {
 	Markdown    []markdownPlanEntry `json:"markdown,omitempty"`
 	HookMerges  []string            `json:"hook_merges,omitempty"`
 	Skills      []skillDestPlan     `json:"skills,omitempty"`
+	SkillsNotes []string            `json:"skills_notes,omitempty"`
 	LocalMerged string              `json:"local_merged"`
 }
 
@@ -76,6 +77,7 @@ type InstallPlan struct {
 	Markdown    []markdownPlanEntry
 	HookMerges  []string
 	Skills      []skillDestPlan
+	SkillsNotes []string
 	LocalMerged string
 }
 
@@ -179,16 +181,20 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 			plan.Skills = append(plan.Skills, sp)
 		}
 		if sel.DidGemini {
-			spG, err := inst.skillDestPlan("Gemini", SkillsDest(Gemini), skillDirs)
-			if err != nil {
-				return nil, err
+			plan.SkillsNotes = append(plan.SkillsNotes,
+				fmt.Sprintf(
+					"Gemini CLI: skip %s — gemini-cli loads universal skills from %s by default; copying there would duplicate skills and conflict",
+					SkillsDest(Gemini),
+					filepath.Join(inst.RepoRoot, "skills"),
+				),
+			)
+			if sel.DidAntigravity {
+				spA, err := inst.skillDestPlan("Antigravity", SkillsDest(Antigravity), skillDirs)
+				if err != nil {
+					return nil, err
+				}
+				plan.Skills = append(plan.Skills, spA)
 			}
-			plan.Skills = append(plan.Skills, spG)
-			spA, err := inst.skillDestPlan("Antigravity", SkillsDest(Antigravity), skillDirs)
-			if err != nil {
-				return nil, err
-			}
-			plan.Skills = append(plan.Skills, spA)
 		}
 	}
 
@@ -259,6 +265,13 @@ func formatInstallPlan(plan *InstallPlan, withHooks, withSkills bool) string {
 		b.WriteString("\n\nMerge hooks into settings\n")
 		for _, p := range plan.HookMerges {
 			fmt.Fprintf(&b, "  • %s\n", p)
+		}
+	}
+
+	if withSkills && len(plan.SkillsNotes) > 0 {
+		b.WriteString("\n\nSkills (notes)\n")
+		for _, n := range plan.SkillsNotes {
+			fmt.Fprintf(&b, "  • %s\n", n)
 		}
 	}
 
@@ -340,6 +353,7 @@ func planToReport(p *InstallPlan) *InstallPlanReport {
 		Markdown:    append([]markdownPlanEntry(nil), p.Markdown...),
 		HookMerges:  append([]string(nil), p.HookMerges...),
 		Skills:      append([]skillDestPlan(nil), p.Skills...),
+		SkillsNotes: append([]string(nil), p.SkillsNotes...),
 		LocalMerged: p.LocalMerged,
 	}
 }

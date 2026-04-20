@@ -48,7 +48,9 @@ func HookSettingsPath(a Agent) string {
 }
 
 // SkillsDest returns the directory where skills are copied for the agent.
-// Gemini CLI and Antigravity each have a skills directory under GeminiConfigDir().
+// Gemini CLI resolves universal skills from the repo's skills/ directory (typically ~/.agents/skills);
+// install does not mirror into GeminiConfigDir()/skills (see installSkills). Antigravity uses
+// a separate directory under GeminiConfigDir().
 // Returns empty string for unknown agents.
 func SkillsDest(a Agent) string {
 	switch a {

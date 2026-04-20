@@ -1,5 +1,7 @@
 //go:build darwin
 
+// Package mactls provides a transport with embedded public roots instead of using Security.framework.
+// This is useful for sandboxed agent environments where Security.framework is not available.
 package mactls
 
 import (

@@ -84,7 +84,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
-	didGemini, _, err := inst.installGemini(src, hooksDir, detected, forcing)
+	_, didAntigravity, err := inst.installGemini(src, hooksDir, detected, forcing)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
-	if err := inst.installSkills(didClaude, didCursor, didGemini, skillDirs); err != nil {
+	if err := inst.installSkills(didClaude, didCursor, didAntigravity, skillDirs); err != nil {
 		return nil, err
 	}
 
@@ -203,7 +203,7 @@ func (inst *Installer) installCursor(src, hooksDir string, detected map[Agent]bo
 	return true, nil
 }
 
-func (inst *Installer) installSkills(didClaude, didCursor, didGemini bool, skillDirs []string) error {
+func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool, skillDirs []string) error {
 	if !inst.WithSkills {
 		return nil
 	}
@@ -220,10 +220,7 @@ func (inst *Installer) installSkills(didClaude, didCursor, didGemini bool, skill
 			return err
 		}
 	}
-	if didGemini {
-		if err := inst.copySkills(skillDirs, SkillsDest(Gemini)); err != nil {
-			return err
-		}
+	if didAntigravity {
 		if err := inst.copySkills(skillDirs, SkillsDest(Antigravity)); err != nil {
 			return err
 		}

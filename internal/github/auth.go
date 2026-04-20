@@ -34,6 +34,9 @@ func ResolveToken() (string, error) {
 // NewClient creates a GitHub GraphQL client authenticated with the given token.
 func NewClient(token string) *githubv4.Client {
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	httpClient := &http.Client{Transport: &oauth2.Transport{Source: src}}
-	return githubv4.NewClient(httpClient)
+	oauthTransport := &oauth2.Transport{Source: src}
+	if base := githubHTTPRoundTripper(); base != nil {
+		oauthTransport = &oauth2.Transport{Source: src, Base: base}
+	}
+	return githubv4.NewClient(&http.Client{Transport: oauthTransport})
 }

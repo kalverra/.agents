@@ -1,6 +1,6 @@
 //go:build darwin
 
-package github
+package mactls
 
 import (
 	"crypto/tls"
@@ -17,17 +17,19 @@ import (
 //go:embed cacert.pem
 var mozillaCACertPEM []byte
 
-func githubHTTPRoundTripper() http.RoundTripper {
-	// Default: pure-Go verification with public roots (works under sandbox).
-	// Set AGENTS_TLS_MACOS_USE_KEYCHAIN=1 to use the system HTTP transport and
-	// Keychain-based verification (e.g. enterprise CAs only in the keychain).
+// RoundTripper returns a transport with embedded public roots, or nil to use
+// [http.DefaultTransport] (Security.framework / Keychain verification).
+//
+// Set AGENTS_TLS_MACOS_USE_KEYCHAIN=1 to force nil. SSL_CERT_FILE, when set,
+// merges additional PEM roots into the pool.
+func RoundTripper() http.RoundTripper {
 	if os.Getenv("AGENTS_TLS_MACOS_USE_KEYCHAIN") == "1" {
 		return nil
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(mozillaCACertPEM); !ok {
-		panic("github: mozilla CA bundle did not parse")
+		panic("mactls: mozilla CA bundle did not parse")
 	}
 	if extra := os.Getenv("SSL_CERT_FILE"); extra != "" {
 		if data, err := os.ReadFile(extra); err == nil { //nolint:gosec // path from env, user-controlled by design

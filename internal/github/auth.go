@@ -9,6 +9,8 @@ import (
 
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/kalverra/agents/internal/mactls"
 )
 
 // ResolveToken finds a GitHub token from env vars or the gh CLI.
@@ -35,7 +37,7 @@ func ResolveToken() (string, error) {
 func NewClient(token string) *githubv4.Client {
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	oauthTransport := &oauth2.Transport{Source: src}
-	if base := githubHTTPRoundTripper(); base != nil {
+	if base := mactls.RoundTripper(); base != nil {
 		oauthTransport = &oauth2.Transport{Source: src, Base: base}
 	}
 	return githubv4.NewClient(&http.Client{Transport: oauthTransport})

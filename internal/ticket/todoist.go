@@ -9,6 +9,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"resty.dev/v3"
+
+	"github.com/kalverra/agents/internal/mactls"
 )
 
 // defaultTodoistAPIBase is the Todoist HTTP API v1 base URL.
@@ -45,6 +47,9 @@ func todoistAPIBase(cfg TodoistConfig) string {
 
 func newTodoistClient(l zerolog.Logger, cfg TodoistConfig) *resty.Client {
 	c := resty.New()
+	if rt := mactls.RoundTripper(); rt != nil {
+		c.SetTransport(rt)
+	}
 	c.SetBaseURL(todoistAPIBase(cfg))
 	if tok := strings.TrimSpace(cfg.Token); tok != "" {
 		c.SetAuthToken(tok)

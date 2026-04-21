@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "*.md"
-      - "scripts/eval/**"
+      - "eval/**"
       - "internal/eval/**"
       - ".github/workflows/eval-pr.yaml"
 
@@ -34,8 +34,8 @@ jobs:
         working-directory: pr-repo
         run: |
           go run . eval-compare \
-            ../main-repo/scripts/eval/eval_history.json \
-            scripts/eval/eval_history.json \
+            ../main-repo/eval/eval_history.json \
+            eval/eval_history.json \
             results.md
 
       - name: Post check results

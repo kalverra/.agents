@@ -41,4 +41,4 @@ jobs:
       - name: Post check results
         if: always()
         run: |
-          cat results.md >> "$GITHUB_STEP_SUMMARY"
+          cat pr-repo/results.md >> "$GITHUB_STEP_SUMMARY"

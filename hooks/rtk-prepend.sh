@@ -4,6 +4,8 @@
 # Requires: rtk on PATH, jq on PATH (for fallback).
 set -euo pipefail
 
+export RTK_SUPPRESS_HOOK_WARNING=1
+
 # Delegate to native 'rtk hook' for supported agents
 if command -v rtk >/dev/null 2>&1; then
   case "${AGENT_TYPE:-}" in
@@ -37,7 +39,7 @@ esac
 # https://github.com/rtk-ai/rtk/issues/682
 # - RTK_SUPPRESS_HOOK_WARNING: rtk may print the nag to the TTY; env asks rtk to skip it when supported.
 # - grep filter: strip the line from merged stdout/stderr (pipefail-safe: grep exits 1 if all lines removed).
-REWRITTEN="{ RTK_SUPPRESS_HOOK_WARNING=1 rtk $COMMAND; } 2>&1 | tr -d $'\r' | { command grep -v -i -F 'No hook installed' || true; }"
+REWRITTEN="{ rtk $COMMAND; } 2>&1 | tr -d $'\r' | { command grep -v -i -F 'No hook installed' || true; }"
 
 case "${AGENT_TYPE:-}" in
   claude)

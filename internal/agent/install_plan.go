@@ -102,11 +102,10 @@ type markdownPlanEntry struct {
 }
 
 type skillDestPlan struct {
-	Label          string   `json:"label"`
-	DestRoot       string   `json:"dest_root"`
-	Removed        []string `json:"removed"`
-	Installed      []string `json:"installed"`
-	PreserveExtras bool     `json:"preserve_extras,omitempty"`
+	Label     string   `json:"label"`
+	DestRoot  string   `json:"dest_root"`
+	Removed   []string `json:"removed"`
+	Installed []string `json:"installed"`
 }
 
 // buildInstallPlan gathers paths and skill diffs for display and JSON.
@@ -215,11 +214,13 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 			}
 		}
 		if sel.DidCodex {
-			sp, err := inst.skillDestPlanPreservingExtras("Codex", SkillsDest(Codex), skillDirs)
-			if err != nil {
-				return nil, err
-			}
-			plan.Skills = append(plan.Skills, sp)
+			plan.SkillsNotes = append(plan.SkillsNotes,
+				fmt.Sprintf(
+					"Codex: skip %s — Codex loads user skills from %s by default; copying there would duplicate skills and conflict",
+					SkillsDest(Codex),
+					filepath.Join(inst.RepoRoot, "skills"),
+				),
+			)
 		}
 	}
 
@@ -265,21 +266,6 @@ func (inst *Installer) skillDestPlan(label, destRoot string, skillDirs []string)
 	return p, nil
 }
 
-// skillDestPlanPreservingExtras lists repo skills for destinations that also hold
-// agent-managed or user-installed skills outside this repo.
-func (*Installer) skillDestPlanPreservingExtras(
-	label,
-	destRoot string,
-	skillDirs []string,
-) (skillDestPlan, error) {
-	return skillDestPlan{
-		Label:          label,
-		DestRoot:       destRoot,
-		Installed:      skillBasenames(skillDirs),
-		PreserveExtras: true,
-	}, nil
-}
-
 // formatInstallPlan returns the same human-readable summary as printInstallPlan (without JSON suppression).
 func formatInstallPlan(plan *InstallPlan, withHooks, withSkills bool) string {
 	var b strings.Builder
@@ -319,20 +305,14 @@ func formatInstallPlan(plan *InstallPlan, withHooks, withSkills bool) string {
 		b.WriteString("\n\nSkills\n")
 		for _, s := range plan.Skills {
 			fmt.Fprintf(&b, "  • [%s] %s\n", s.Label, s.DestRoot)
-			switch {
-			case s.PreserveExtras:
-				b.WriteString("      remove: (none — preserve existing skills)\n")
-			case len(s.Removed) > 0:
+			if len(s.Removed) > 0 {
 				fmt.Fprintf(&b, "      remove: %s\n", strings.Join(s.Removed, ", "))
-			default:
+			} else {
 				b.WriteString("      remove: (none)\n")
 			}
-			switch {
-			case len(s.Installed) > 0:
+			if len(s.Installed) > 0 {
 				fmt.Fprintf(&b, "      install: %s\n", strings.Join(s.Installed, ", "))
-			case s.PreserveExtras:
-				b.WriteString("      install: (none — existing skills preserved)\n")
-			default:
+			} else {
 				b.WriteString("      install: (none — destination will be empty)\n")
 			}
 		}

@@ -179,29 +179,6 @@ func TestCopySkills_RemovesExtraAndCopiesRepo(t *testing.T) {
 	require.Equal(t, "# a", string(got))
 }
 
-func TestCopySkillsPreservingExtras_DoesNotRemoveExistingCodexSkills(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	skillA := filepath.Join(repoRoot, "alpha")
-	require.NoError(t, os.MkdirAll(skillA, 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(skillA, "SKILL.md"), []byte("# a"), 0o600))
-
-	dest := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dest, ".system"), 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(dest, ".system", "SKILL.md"), []byte("# system"), 0o600))
-	require.NoError(t, os.MkdirAll(filepath.Join(dest, "manual"), 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(dest, "manual", "SKILL.md"), []byte("# manual"), 0o600))
-
-	inst := &Installer{}
-	require.NoError(t, inst.copySkillsPreservingExtras([]string{skillA}, dest))
-
-	for _, name := range []string{".system", "manual", "alpha"} {
-		_, err := os.Stat(filepath.Join(dest, name, "SKILL.md"))
-		require.NoError(t, err)
-	}
-}
-
 func TestCopySkills_EmptyRepoClearsDestination(t *testing.T) {
 	t.Parallel()
 

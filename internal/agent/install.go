@@ -255,11 +255,7 @@ func (inst *Installer) installSkills(
 			return err
 		}
 	}
-	if didCodex {
-		if err := inst.copySkillsPreservingExtras(skillDirs, SkillsDest(Codex)); err != nil {
-			return err
-		}
-	}
+	_ = didCodex
 	return nil
 }
 
@@ -579,33 +575,6 @@ func (inst *Installer) copySkills(skillDirs []string, destRoot string) error {
 
 	if len(skillDirs) == 0 {
 		output.Successf("Removed all skills under %s\n", destRoot)
-		return nil
-	}
-
-	n := 0
-	for _, sd := range skillDirs {
-		dst := filepath.Join(destRoot, filepath.Base(sd))
-		_ = os.RemoveAll(dst)
-		if err := copyDir(sd, dst); err != nil {
-			return fmt.Errorf("copying skill %s: %w", filepath.Base(sd), err)
-		}
-		n++
-	}
-	output.Successf("Copied %d skill(s) to %s\n", n, destRoot)
-	return nil
-}
-
-func (inst *Installer) copySkillsPreservingExtras(skillDirs []string, destRoot string) error {
-	if destRoot == "" {
-		return nil
-	}
-
-	if err := os.MkdirAll(destRoot, 0o750); err != nil {
-		return err
-	}
-
-	if len(skillDirs) == 0 {
-		output.Successf("No repo skills to copy to %s\n", destRoot)
 		return nil
 	}
 

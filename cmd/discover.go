@@ -80,8 +80,8 @@ var discoverCmd = &cobra.Command{
 		codex := info{Name: "codex", Detected: agent.Detect(agent.Codex, verbose)}
 		if codex.Detected {
 			codex.Context = agent.MarkdownDest(agent.Codex)
-			codex.Skills = agent.SkillsDest(agent.Codex)
-			codex.Note = "preserves existing Codex skills"
+			codex.Skills = filepath.Join(home, ".agents", "skills")
+			codex.Note = "Codex user skills load from ~/.agents/skills by default"
 		}
 		results = append(results, codex)
 

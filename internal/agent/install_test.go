@@ -120,6 +120,19 @@ func TestComputeSelection_ForcedClaude(t *testing.T) {
 	require.True(t, sel.DidClaude)
 }
 
+func TestComputeSelection_ForcedCodex(t *testing.T) {
+	t.Parallel()
+
+	inst := &Installer{
+		Targets: ParseTargets("codex"),
+	}
+	detected := map[Agent]bool{Codex: false}
+	sel := computeSelection(inst, detected, true)
+	require.True(t, sel.DidCodex)
+	require.True(t, sel.anyAgent())
+	require.False(t, sel.hookScriptsNeeded())
+}
+
 func TestComputeSelection_AntigravityNoStripWhenHooksKept(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +177,29 @@ func TestCopySkills_RemovesExtraAndCopiesRepo(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dest, "alpha", "SKILL.md")) //nolint:gosec // test temp path
 	require.NoError(t, err)
 	require.Equal(t, "# a", string(got))
+}
+
+func TestCopySkillsPreservingExtras_DoesNotRemoveExistingCodexSkills(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	skillA := filepath.Join(repoRoot, "alpha")
+	require.NoError(t, os.MkdirAll(skillA, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(skillA, "SKILL.md"), []byte("# a"), 0o600))
+
+	dest := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, ".system"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dest, ".system", "SKILL.md"), []byte("# system"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, "manual"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dest, "manual", "SKILL.md"), []byte("# manual"), 0o600))
+
+	inst := &Installer{}
+	require.NoError(t, inst.copySkillsPreservingExtras([]string{skillA}, dest))
+
+	for _, name := range []string{".system", "manual", "alpha"} {
+		_, err := os.Stat(filepath.Join(dest, name, "SKILL.md"))
+		require.NoError(t, err)
+	}
 }
 
 func TestCopySkills_EmptyRepoClearsDestination(t *testing.T) {

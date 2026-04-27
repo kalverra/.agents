@@ -100,6 +100,11 @@ some content
 after
 `,
 		},
+		{
+			name:  "inline tags removed but content kept",
+			input: `<hookable name="rtk"><rule>Prepend "rtk" to ALL shell commands.</rule></hookable>`,
+			want:  `<rule>Prepend "rtk" to ALL shell commands.</rule>`,
+		},
 	}
 
 	for _, tt := range tests {

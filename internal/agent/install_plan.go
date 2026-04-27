@@ -29,18 +29,23 @@ type InstallPlanReport struct {
 	LocalMerged string              `json:"local_merged"`
 }
 
-// installSelection captures which install branches run (mirrors installClaude / installGemini / installCursor).
+// installSelection captures which install branches run (mirrors installClaude / installGemini / installCursor / installCodex).
 type installSelection struct {
 	DidClaude           bool
 	DidGemini           bool
 	DidAntigravity      bool
 	DidCursor           bool
+	DidCodex            bool
 	StripGeminiMarkdown bool
 	GeminiHooksMerge    bool
 }
 
 func (s installSelection) anyAgent() bool {
-	return s.DidClaude || s.DidGemini || s.DidCursor
+	return s.DidClaude || s.DidGemini || s.DidCursor || s.DidCodex
+}
+
+func (s installSelection) hookScriptsNeeded() bool {
+	return s.DidClaude || s.GeminiHooksMerge || s.DidCursor
 }
 
 // computeSelection derives install flags from detection and --targets without side effects.
@@ -68,6 +73,10 @@ func computeSelection(inst *Installer, detected map[Agent]bool, forcing bool) in
 		s.DidCursor = true
 	}
 
+	if TargetWanted(Codex, inst.Targets) && (detected[Codex] || forcing) {
+		s.DidCodex = true
+	}
+
 	return s
 }
 
@@ -93,10 +102,11 @@ type markdownPlanEntry struct {
 }
 
 type skillDestPlan struct {
-	Label     string   `json:"label"`
-	DestRoot  string   `json:"dest_root"`
-	Removed   []string `json:"removed"`
-	Installed []string `json:"installed"`
+	Label          string   `json:"label"`
+	DestRoot       string   `json:"dest_root"`
+	Removed        []string `json:"removed"`
+	Installed      []string `json:"installed"`
+	PreserveExtras bool     `json:"preserve_extras,omitempty"`
 }
 
 // buildInstallPlan gathers paths and skill diffs for display and JSON.
@@ -105,7 +115,7 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 		LocalMerged: filepath.Join(inst.RepoRoot, "GLOBAL_AGENTS.local.md"),
 	}
 
-	if inst.WithHooks {
+	if inst.WithHooks && sel.hookScriptsNeeded() {
 		hd := HooksDeployDir()
 		srcDir := filepath.Join(inst.RepoRoot, "hooks")
 		for _, name := range hookScriptNames() {
@@ -165,6 +175,14 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 		}
 	}
 
+	if sel.DidCodex {
+		plan.Markdown = append(plan.Markdown, markdownPlanEntry{
+			Agent:   "Codex",
+			Dest:    MarkdownDest(Codex),
+			Summary: "merge USER_AGENTS; keep hookable instructions (Codex hooks not installed)",
+		})
+	}
+
 	if inst.WithSkills {
 		if sel.DidClaude {
 			sp, err := inst.skillDestPlan("Claude", SkillsDest(Claude), skillDirs)
@@ -195,6 +213,13 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 				}
 				plan.Skills = append(plan.Skills, spA)
 			}
+		}
+		if sel.DidCodex {
+			sp, err := inst.skillDestPlanPreservingExtras("Codex", SkillsDest(Codex), skillDirs)
+			if err != nil {
+				return nil, err
+			}
+			plan.Skills = append(plan.Skills, sp)
 		}
 	}
 
@@ -240,6 +265,21 @@ func (inst *Installer) skillDestPlan(label, destRoot string, skillDirs []string)
 	return p, nil
 }
 
+// skillDestPlanPreservingExtras lists repo skills for destinations that also hold
+// agent-managed or user-installed skills outside this repo.
+func (*Installer) skillDestPlanPreservingExtras(
+	label,
+	destRoot string,
+	skillDirs []string,
+) (skillDestPlan, error) {
+	return skillDestPlan{
+		Label:          label,
+		DestRoot:       destRoot,
+		Installed:      skillBasenames(skillDirs),
+		PreserveExtras: true,
+	}, nil
+}
+
 // formatInstallPlan returns the same human-readable summary as printInstallPlan (without JSON suppression).
 func formatInstallPlan(plan *InstallPlan, withHooks, withSkills bool) string {
 	var b strings.Builder
@@ -276,17 +316,23 @@ func formatInstallPlan(plan *InstallPlan, withHooks, withSkills bool) string {
 	}
 
 	if withSkills && len(plan.Skills) > 0 {
-		b.WriteString("\n\nSkills (destination mirrors repo; extras removed)\n")
+		b.WriteString("\n\nSkills\n")
 		for _, s := range plan.Skills {
 			fmt.Fprintf(&b, "  • [%s] %s\n", s.Label, s.DestRoot)
-			if len(s.Removed) > 0 {
+			switch {
+			case s.PreserveExtras:
+				b.WriteString("      remove: (none — preserve existing skills)\n")
+			case len(s.Removed) > 0:
 				fmt.Fprintf(&b, "      remove: %s\n", strings.Join(s.Removed, ", "))
-			} else {
+			default:
 				b.WriteString("      remove: (none)\n")
 			}
-			if len(s.Installed) > 0 {
+			switch {
+			case len(s.Installed) > 0:
 				fmt.Fprintf(&b, "      install: %s\n", strings.Join(s.Installed, ", "))
-			} else {
+			case s.PreserveExtras:
+				b.WriteString("      install: (none — existing skills preserved)\n")
+			default:
 				b.WriteString("      install: (none — destination will be empty)\n")
 			}
 		}

@@ -1,5 +1,5 @@
 // Package agent provides detection, path resolution, and installation logic
-// for deploying agent instructions to Claude Code, Gemini CLI, Antigravity, and Cursor.
+// for deploying agent instructions to Claude Code, Gemini CLI, Antigravity, Cursor, and Codex.
 package agent
 
 import (
@@ -16,11 +16,12 @@ const (
 	Gemini      Agent = "gemini"
 	Antigravity Agent = "antigravity"
 	Cursor      Agent = "cursor"
+	Codex       Agent = "codex"
 )
 
 // All returns all supported agents.
 func All() []Agent {
-	return []Agent{Claude, Gemini, Antigravity, Cursor}
+	return []Agent{Claude, Gemini, Antigravity, Cursor, Codex}
 }
 
 // ParseTargets splits a comma-separated string into a list of agents.

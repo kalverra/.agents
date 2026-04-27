@@ -14,6 +14,15 @@ func GeminiConfigDir() string {
 	return filepath.Join(homeDir(), ".gemini")
 }
 
+// CodexConfigDir returns the Codex config directory,
+// respecting the CODEX_HOME env var.
+func CodexConfigDir() string {
+	if env := os.Getenv("CODEX_HOME"); env != "" {
+		return env
+	}
+	return filepath.Join(homeDir(), ".codex")
+}
+
 // HooksDeployDir is where hook scripts are copied at install time.
 func HooksDeployDir() string {
 	return filepath.Join(homeDir(), ".agents-hooks")
@@ -28,6 +37,8 @@ func MarkdownDest(a Agent) string {
 		return filepath.Join(GeminiConfigDir(), "GEMINI.md")
 	case Cursor:
 		return filepath.Join(homeDir(), ".cursor", "rules", "global-agents.mdc")
+	case Codex:
+		return filepath.Join(CodexConfigDir(), "AGENTS.md")
 	default:
 		return ""
 	}
@@ -62,6 +73,8 @@ func SkillsDest(a Agent) string {
 		return filepath.Join(GeminiConfigDir(), "skills")
 	case Antigravity:
 		return filepath.Join(GeminiConfigDir(), "antigravity", "skills")
+	case Codex:
+		return filepath.Join(CodexConfigDir(), "skills")
 	default:
 		return ""
 	}

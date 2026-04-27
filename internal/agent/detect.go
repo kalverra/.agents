@@ -19,6 +19,8 @@ func Detect(a Agent, verbose bool) bool {
 		return detectAntigravity(verbose)
 	case Cursor:
 		return detectCursor(verbose)
+	case Codex:
+		return detectCodex(verbose)
 	default:
 		return false
 	}
@@ -111,6 +113,18 @@ func detectCursor(verbose bool) bool {
 			vlog(verbose, "cursor: %s exists", p)
 			return true
 		}
+	}
+	return false
+}
+
+func detectCodex(verbose bool) bool {
+	if p, err := exec.LookPath("codex"); err == nil {
+		vlog(verbose, "codex: found in PATH (%s)", p)
+		return true
+	}
+	if isDir(CodexConfigDir()) {
+		vlog(verbose, "codex: config dir exists (%s)", CodexConfigDir())
+		return true
 	}
 	return false
 }

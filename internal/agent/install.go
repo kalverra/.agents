@@ -49,7 +49,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 
 	if !sel.anyAgent() {
 		output.Println("Nothing installed. Try: agents discover")
-		output.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor")
+		output.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor,codex")
 		return nil, fmt.Errorf("no agents installed")
 	}
 
@@ -72,7 +72,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 	}
 
 	var hooksDir string
-	if inst.WithHooks {
+	if inst.WithHooks && sel.hookScriptsNeeded() {
 		hooksDir, err = inst.deployHookScripts()
 		if err != nil {
 			return nil, fmt.Errorf("deploying hook scripts: %w", err)
@@ -94,7 +94,12 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
-	if err := inst.installSkills(didClaude, didCursor, didAntigravity, skillDirs); err != nil {
+	didCodex, err := inst.installCodex(src, detected, forcing)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := inst.installSkills(didClaude, didCursor, didAntigravity, didCodex, skillDirs); err != nil {
 		return nil, err
 	}
 
@@ -107,7 +112,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 
 func installReportFromSelection(inst *Installer, sel installSelection) *InstallReport {
 	report := &InstallReport{
-		Hooks:  inst.WithHooks,
+		Hooks:  inst.WithHooks && sel.hookScriptsNeeded(),
 		Skills: inst.WithSkills,
 		DryRun: false,
 	}
@@ -122,6 +127,9 @@ func installReportFromSelection(inst *Installer, sel installSelection) *InstallR
 	}
 	if sel.DidCursor {
 		report.Agents = append(report.Agents, "cursor")
+	}
+	if sel.DidCodex {
+		report.Agents = append(report.Agents, "codex")
 	}
 	return report
 }
@@ -203,12 +211,34 @@ func (inst *Installer) installCursor(src, hooksDir string, detected map[Agent]bo
 	return true, nil
 }
 
-func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool, skillDirs []string) error {
+func (inst *Installer) installCodex(src string, detected map[Agent]bool, forcing bool) (bool, error) {
+	if !TargetWanted(Codex, inst.Targets) {
+		return false, nil
+	}
+	if !detected[Codex] && !forcing {
+		return false, nil
+	}
+	if !detected[Codex] {
+		output.Warnf("codex not detected; writing %s anyway (--targets).\n", MarkdownDest(Codex))
+	}
+	if err := inst.deployMarkdown(src, MarkdownDest(Codex), false); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (inst *Installer) installSkills(
+	didClaude,
+	didCursor,
+	didAntigravity,
+	didCodex bool,
+	skillDirs []string,
+) error {
 	if !inst.WithSkills {
 		return nil
 	}
 	if len(skillDirs) == 0 {
-		output.Warnf("no skill directories with SKILL.md in repo; skill destinations will be emptied\n")
+		output.Warnf("no skill directories with SKILL.md in repo\n")
 	}
 	if didClaude {
 		if err := inst.copySkills(skillDirs, SkillsDest(Claude)); err != nil {
@@ -222,6 +252,11 @@ func (inst *Installer) installSkills(didClaude, didCursor, didAntigravity bool, 
 	}
 	if didAntigravity {
 		if err := inst.copySkills(skillDirs, SkillsDest(Antigravity)); err != nil {
+			return err
+		}
+	}
+	if didCodex {
+		if err := inst.copySkillsPreservingExtras(skillDirs, SkillsDest(Codex)); err != nil {
 			return err
 		}
 	}
@@ -544,6 +579,33 @@ func (inst *Installer) copySkills(skillDirs []string, destRoot string) error {
 
 	if len(skillDirs) == 0 {
 		output.Successf("Removed all skills under %s\n", destRoot)
+		return nil
+	}
+
+	n := 0
+	for _, sd := range skillDirs {
+		dst := filepath.Join(destRoot, filepath.Base(sd))
+		_ = os.RemoveAll(dst)
+		if err := copyDir(sd, dst); err != nil {
+			return fmt.Errorf("copying skill %s: %w", filepath.Base(sd), err)
+		}
+		n++
+	}
+	output.Successf("Copied %d skill(s) to %s\n", n, destRoot)
+	return nil
+}
+
+func (inst *Installer) copySkillsPreservingExtras(skillDirs []string, destRoot string) error {
+	if destRoot == "" {
+		return nil
+	}
+
+	if err := os.MkdirAll(destRoot, 0o750); err != nil {
+		return err
+	}
+
+	if len(skillDirs) == 0 {
+		output.Successf("No repo skills to copy to %s\n", destRoot)
 		return nil
 	}
 

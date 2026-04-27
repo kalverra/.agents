@@ -11,6 +11,8 @@ var sectionRe = regexp.MustCompile(`(?s)<hookable name="\w+">.*?</hookable>\s*`)
 
 var openTagRe = regexp.MustCompile(`^<hookable name="\w+">$`)
 var closeTagRe = regexp.MustCompile(`^</hookable>$`)
+var inlineOpenTagRe = regexp.MustCompile(`<hookable name="\w+">`)
+var inlineCloseTagRe = regexp.MustCompile(`</hookable>`)
 
 // StripHookableSections removes entire <hookable name="...">...</hookable> blocks.
 // Used when hooks are installed (the hookable regions are handled by hooks instead).
@@ -28,6 +30,8 @@ func StripHookableDelimiterLines(text string) string {
 		if openTagRe.MatchString(trimmed) || closeTagRe.MatchString(trimmed) {
 			continue
 		}
+		line = inlineOpenTagRe.ReplaceAllString(line, "")
+		line = inlineCloseTagRe.ReplaceAllString(line, "")
 		filtered = append(filtered, line)
 	}
 	return strings.Join(filtered, "\n")

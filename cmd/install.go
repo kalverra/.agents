@@ -48,7 +48,7 @@ func init() {
 	installCmd.Flags().Bool("dry-run", false, "Print actions only")
 	installCmd.Flags().BoolP("verbose", "v", false, "Show detection details")
 	installCmd.Flags().
-		String("targets", "", "Comma-separated: claude,gemini,antigravity,cursor (default: detected only)")
+		String("targets", "", "Comma-separated: claude,gemini,antigravity,cursor,codex (default: detected only)")
 	installCmd.Flags().Bool("no-hooks", false, "Skip hook deploy and settings merge")
 	installCmd.Flags().Bool("no-skills", false, "Skip skill directory copies")
 	installCmd.Flags().BoolP("yes", "y", false, "Skip install confirmation prompt")

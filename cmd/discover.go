@@ -76,6 +76,15 @@ var discoverCmd = &cobra.Command{
 		}
 		results = append(results, cur)
 
+		// Codex
+		codex := info{Name: "codex", Detected: agent.Detect(agent.Codex, verbose)}
+		if codex.Detected {
+			codex.Context = agent.MarkdownDest(agent.Codex)
+			codex.Skills = agent.SkillsDest(agent.Codex)
+			codex.Note = "preserves existing Codex skills"
+		}
+		results = append(results, codex)
+
 		output.Write("discover", results, func() {
 			output.Println("Discovery (signals only — tools need not be running):")
 			output.Println()
@@ -88,6 +97,9 @@ var discoverCmd = &cobra.Command{
 					}
 					if r.Skills != "" {
 						output.Printf("                      skills  -> %s (%s)\n", r.Skills, skillsNote)
+					}
+					if r.Note != "" {
+						output.Printf("                      note    -> %s\n", r.Note)
 					}
 				} else {
 					output.Printf("  %-13s no\n", r.Name)

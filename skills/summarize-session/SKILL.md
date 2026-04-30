@@ -1,6 +1,7 @@
 ---
 name: summarize-session
-description: Post session summary as Todoist task comment. Triggers: SessionGoal done, /summarize-session.
+description: >-
+ Post session summary as Todoist task comment. Triggers: SessionGoal done, /summarize-session.
 ---
 
 <intent>

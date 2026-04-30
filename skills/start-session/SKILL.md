@@ -1,6 +1,7 @@
 ---
 name: start-session
-description: Fetch Todoist task by id or app URL; set SessionGoal. Triggers: task link, bare id, /start-session.
+description: >-
+ Fetch Todoist task by id or app URL; set SessionGoal. Triggers: task link, bare id, /start-session.
 ---
 
 <intent>

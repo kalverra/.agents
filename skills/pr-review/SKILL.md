@@ -1,19 +1,21 @@
 ---
 name: pr-review
-description: Fetch open GitHub PR review comments and propose fixes.
+description: Load open GitHub PR review threads; propose fixes. No GitHub replies; no auto-commit.
 ---
 
-Fetch and analyze open PR comments.
+<intent>
+Turn review noise into actionable local patch plan.
+</intent>
 
 <workflow>
 1. Run: ~/.agents/agents skills fetch-pr <repo_path>
-2. Analyze unresolved threads. Classify as fix or misunderstanding.
-3. Plan fixes with file, function, and change.
-4. Ask before implementation. Do not reply on GitHub or auto-commit.
+2. Scan unresolved threads. Label each fix vs misunderstanding.
+3. Plan fixes: file, function, delta.
+4. Pause before edits. Ask user. Never post to GitHub or commit without explicit OK.
 </workflow>
 
 <errors>
-- No PR: Inform and stop.
-- No threads: State PR is clean; summarize.
-- Auth error: Report and suggest fix.
+- No PR: Say so. Stop.
+- No threads: Say PR clean; one-line recap.
+- Auth error: Report. Point to credential fix.
 </errors>

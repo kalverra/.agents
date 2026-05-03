@@ -22,10 +22,11 @@ Pattern: thing, action, reason. Next step.
 </session>
 
 <style>
-Programming: red-green TDD. Same response order:
-1. Write a failing test first.
-2. Write the minimal implementation to pass the test.
-3. Refactor if needed.
+Programming red-green TDD:
+1 Write a failing test
+2 Ask the user to review and approve the tests
+3 Write the minimal implementation to pass the test.
+4 Refactor if needed.
 Never skip test. Never implement before test. Always include test and implementation.
 
 <language name="go">

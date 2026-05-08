@@ -9,7 +9,7 @@ Bind one Todoist ticket as SessionGoal for session scope.
 </intent>
 
 <workflow>
-1. Run `~/.agents/agents skills ticket fetch <task_id_or_url> --ai-output` (or `agents` from PATH if installed). Uses [Todoist API v1](https://developer.todoist.com/api/v1/). The CLI accepts a bare id or a full `https://app.todoist.com/app/task/...` link. With `--ai-output`, stdout is indented JSON: top-level envelope `status`, `command`, `data`; `data.task` has id/title/description/status/url; `data.comments` is an array of `{id, content, posted_at, project_id}` (all pages merged, API order).
+1. Run `~/.agents/agents skills ticket fetch <task_id_or_url> --ai-output` (or `agents` from PATH if installed). The CLI accepts a Todoist bare id or `https://app.todoist.com/app/task/...` link, or a Jira key/URL when Jira env is set. With `--ai-output`, stdout is XML: root `<ticket_fetch status="ok">` with child elements `id`, `title`, optional `description`, `status`, `url`, and `<comments>` containing `<comment>` blocks (`id`, optional `posted_at`, `project_id`, `content`). Markdown in description/comments is plain text inside elements (XML-escaped).
 2. Build SessionGoal from task title, description, due date when present.
 3. State goal once. Continue work against that goal.
 </workflow>

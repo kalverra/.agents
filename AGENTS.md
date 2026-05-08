@@ -21,7 +21,7 @@ Located in `skills/`
 - Use zerolog for all logging. Logging is not user output, it is only for debugging.
 - When an official Go package doesn't exist to write a client to an API, use resty.
 - Each Go command should utilize the `--ai-output` flag to format output for consumption by LLMs.
-- AI output uses a consistent JSON envelope: `{"status":"ok","command":"<name>","data":<payload>}`.
+- AI output uses a consistent JSON envelope: `{"status":"ok","command":"<name>","data":<payload>}` (except `skills ticket fetch --ai-output`, which prints XML for the ticket payload).
 - Use `output.Write(command, data, func() {...})` to cleanly handle both JSON and human output paths in one call without branching.
 </style>
 

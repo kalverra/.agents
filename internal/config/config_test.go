@@ -32,6 +32,17 @@ func TestLoadEnv_Todoist(t *testing.T) {
 	assert.Equal(t, "https://example.test/api/v1", cfg.TodoistRESTBase)
 }
 
+func TestLoadEnv_Jira(t *testing.T) {
+	t.Setenv("JIRA_EMAIL", "u@example.com")
+	t.Setenv("JIRA_API_TOKEN", "tok")
+	t.Setenv("JIRA_DOMAIN", "acme.atlassian.net")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "u@example.com", cfg.JiraEmail)
+	assert.Equal(t, "tok", cfg.JiraAPIToken)
+	assert.Equal(t, "acme.atlassian.net", cfg.JiraDomain)
+}
+
 func TestLoadFlags(t *testing.T) {
 	t.Parallel()
 

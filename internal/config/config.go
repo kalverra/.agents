@@ -19,6 +19,13 @@ type Config struct {
 	TodoistAPIToken string `mapstructure:"todoist_api_token"`
 	// TodoistRESTBase overrides the Todoist API v1 base URL (default https://api.todoist.com/api/v1). Env: TODOIST_REST_BASE.
 	TodoistRESTBase string `mapstructure:"todoist_rest_base"`
+
+	// JiraCloud: Atlassian account email for Basic auth. Env: JIRA_EMAIL.
+	JiraEmail string `mapstructure:"jira_email"`
+	// JiraCloud: API token (not password). Env: JIRA_API_TOKEN.
+	JiraAPIToken string `mapstructure:"jira_api_token"`
+	// JiraCloud: site hostname only, e.g. your-org.atlassian.net (no scheme). Env: JIRA_DOMAIN.
+	JiraDomain string `mapstructure:"jira_domain"`
 }
 
 const (
@@ -54,13 +61,13 @@ func WithFlags(flags *pflag.FlagSet) LoadOption {
 func Load(opts ...LoadOption) (*Config, error) {
 	v := viper.New()
 
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
+	v.SetConfigName(".env")
+	v.SetConfigType("env")
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-	v.AddConfigPath(filepath.Join(home, ".config", "mentat"))
+	v.AddConfigPath(filepath.Join(home, ".agents"))
 
 	v.SetDefault("log_level", DefaultLogLevel)
 

@@ -1,6 +1,6 @@
 package ticket
 
-// FetchPayload is the ticket-fetch `data` object for `--ai-output` (structured JSON).
+// FetchPayload is the normalized ticket-fetch result. With --ai-output, ticket fetch emits XML from this shape (see FetchPayloadToAIXML); human mode prints the same fields as plain text.
 type FetchPayload struct {
 	Task     TaskInfo      `json:"task"`
 	Comments []TaskComment `json:"comments"`
@@ -23,7 +23,7 @@ type TaskComment struct {
 	ProjectID string `json:"project_id,omitempty"`
 }
 
-// ToFetchPayload builds the structured ticket-fetch payload for `--ai-output`.
+// ToFetchPayload builds the normalized payload used for AI XML output and internal testing.
 func (tk *Ticket) ToFetchPayload() FetchPayload {
 	comments := tk.Comments
 	if comments == nil {

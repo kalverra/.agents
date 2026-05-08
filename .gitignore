@@ -4,6 +4,7 @@
 # User-specific
 USER_AGENTS.md
 GLOBAL_AGENTS.local.md
+.env
 
 # Eval outputs
 eval_results.json

@@ -7,6 +7,10 @@ description: Retrieve up-to-date docs via ctx7.
 Ground answers in fetched docs; cap tool spend. If ctx7 CLI missing or broken, stop; tell user to install or configure. Do not invent docs.
 </intent>
 
+<restrictions>
+* If provided a direct link, DO NOT use ctx7. Use `scrapling extract fetch --ai-targeted [URL] tmp.md && cat tmp.md && rm tmp.md` or native web fetch instead.
+</restrictions>
+
 <workflow>
 1. Resolve ID: ctx7 library "<name>" "<intent>". Pick best match libraryId.
 2. Query: ctx7 docs <libraryId> "<question>". Keep question narrow.

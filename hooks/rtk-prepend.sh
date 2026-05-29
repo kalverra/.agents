@@ -47,6 +47,8 @@ case "${AGENT_TYPE:-}" in
         permissionDecision: "allow",
         updatedInput: { command: $cmd }
       }
+    }'
+    ;;
   cursor)
     jq -n --arg cmd "$REWRITTEN" '{
       permission: "allow",

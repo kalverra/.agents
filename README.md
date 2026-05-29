@@ -1,6 +1,6 @@
 # `~/.agents`
 
-A global home for all of your AI agents! Define global rules once, and sync them to Claude Code, Gemini CLI, Antigravity, Cursor, Codex, and any other agents you use.
+A global home for all of your AI agents! Define global rules once, and sync them to Claude Code, Antigravity, Cursor, Codex, and any other agents you use.
 
 ## Quick Start
 

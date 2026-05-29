@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 )
 
-// GeminiConfigDir returns the Gemini CLI config directory,
-// respecting the GEMINI_CONFIG_DIR env var.
-func GeminiConfigDir() string {
-	if env := os.Getenv("GEMINI_CONFIG_DIR"); env != "" {
+// AntigravityConfigDir returns the Antigravity config directory,
+// respecting the ANTIGRAVITY_CONFIG_DIR env var.
+func AntigravityConfigDir() string {
+	if env := os.Getenv("ANTIGRAVITY_CONFIG_DIR"); env != "" {
 		return env
 	}
 	return filepath.Join(homeDir(), ".gemini")
@@ -33,8 +33,8 @@ func MarkdownDest(a Agent) string {
 	switch a {
 	case Claude:
 		return filepath.Join(homeDir(), ".claude", "CLAUDE.md")
-	case Gemini, Antigravity:
-		return filepath.Join(GeminiConfigDir(), "GEMINI.md")
+	case Antigravity:
+		return filepath.Join(AntigravityConfigDir(), "GEMINI.md")
 	case Cursor:
 		return filepath.Join(homeDir(), ".cursor", "rules", "global-agents.mdc")
 	case Codex:
@@ -49,8 +49,6 @@ func HookSettingsPath(a Agent) string {
 	switch a {
 	case Claude:
 		return filepath.Join(homeDir(), ".claude", "settings.json")
-	case Gemini, Antigravity:
-		return filepath.Join(GeminiConfigDir(), "settings.json")
 	case Cursor:
 		return filepath.Join(homeDir(), ".cursor", "hooks.json")
 	default:
@@ -59,9 +57,6 @@ func HookSettingsPath(a Agent) string {
 }
 
 // SkillsDest returns the directory where skills are copied for the agent.
-// Gemini CLI resolves universal skills from the repo's skills/ directory (typically ~/.agents/skills);
-// install does not mirror into GeminiConfigDir()/skills (see installSkills). Antigravity uses
-// a separate directory under GeminiConfigDir().
 // Returns empty string for unknown agents.
 func SkillsDest(a Agent) string {
 	switch a {
@@ -69,10 +64,8 @@ func SkillsDest(a Agent) string {
 		return filepath.Join(homeDir(), ".claude", "skills")
 	case Cursor:
 		return filepath.Join(homeDir(), ".cursor", "skills")
-	case Gemini:
-		return filepath.Join(GeminiConfigDir(), "skills")
 	case Antigravity:
-		return filepath.Join(GeminiConfigDir(), "antigravity", "skills")
+		return filepath.Join(AntigravityConfigDir(), "skills")
 	case Codex:
 		return filepath.Join(CodexConfigDir(), "skills")
 	default:
@@ -85,8 +78,6 @@ func HookSnippetFile(a Agent) string {
 	switch a {
 	case Claude:
 		return "claude-settings-snippet.json"
-	case Gemini, Antigravity:
-		return "gemini-settings-snippet.json"
 	case Cursor:
 		return "cursor-hooks-snippet.json"
 	default:

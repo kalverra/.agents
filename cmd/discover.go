@@ -43,27 +43,13 @@ var discoverCmd = &cobra.Command{
 		}
 		results = append(results, c)
 
-		// Gemini
-		geminiOK := agent.Detect(agent.Gemini, verbose)
-		geminiDir := agent.GeminiConfigDir()
-		universalSkills := filepath.Join(home, ".agents", "skills")
-		g := info{Name: "gemini-cli", Detected: geminiOK}
-		if g.Detected {
-			g.Context = filepath.Join(geminiDir, "GEMINI.md")
-			g.Hooks = filepath.Join(geminiDir, "settings.json")
-			g.Skills = fmt.Sprintf("%s (Gemini CLI universal); %s (Antigravity)",
-				universalSkills, agent.SkillsDest(agent.Antigravity))
-		}
-		results = append(results, g)
-
 		// Antigravity
 		antigravityOK := agent.Detect(agent.Antigravity, verbose)
 		a := info{Name: "antigravity", Detected: antigravityOK}
 		if a.Detected {
-			a.Context = filepath.Join(geminiDir, "GEMINI.md")
-			a.Hooks = filepath.Join(geminiDir, "settings.json")
-			a.Skills = fmt.Sprintf("%s (Gemini CLI universal); %s (Antigravity)",
-				universalSkills, agent.SkillsDest(agent.Antigravity))
+			a.Context = agent.MarkdownDest(agent.Antigravity)
+			a.Hooks = agent.HookSettingsPath(agent.Antigravity)
+			a.Skills = agent.SkillsDest(agent.Antigravity)
 		}
 		results = append(results, a)
 

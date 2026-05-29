@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared hook: prepend `rtk` to shell commands before execution.
-# Called by per-agent wrappers that set AGENT_TYPE={claude,gemini,cursor}.
+# Called by per-agent wrappers that set AGENT_TYPE={claude,cursor}.
 # Requires: rtk on PATH, jq on PATH (for fallback).
 set -euo pipefail
 
@@ -9,7 +9,7 @@ export RTK_SUPPRESS_HOOK_WARNING=1
 # Delegate to native 'rtk hook' for supported agents
 if command -v rtk >/dev/null 2>&1; then
   case "${AGENT_TYPE:-}" in
-    gemini|copilot)
+    copilot)
       export RTK_HOOK_AUDIT=1
       exec rtk hook "$AGENT_TYPE"
       ;;
@@ -22,7 +22,7 @@ if ! command -v jq >/dev/null 2>&1 || ! command -v rtk >/dev/null 2>&1; then
 fi
 
 INPUT="$(cat)"
-# Handle both .tool_input.command (Gemini/Claude) and .arguments.command (Cursor/Generic)
+# Handle .tool_input.command (Claude), and .arguments.command (Cursor/Generic)
 COMMAND="$(jq -r '.tool_input.command // .arguments.command // empty' <<< "$INPUT")"
 
 if [ -z "$COMMAND" ] || [ "$COMMAND" = "null" ]; then
@@ -47,8 +47,6 @@ case "${AGENT_TYPE:-}" in
         permissionDecision: "allow",
         updatedInput: { command: $cmd }
       }
-    }'
-    ;;
   cursor)
     jq -n --arg cmd "$REWRITTEN" '{
       permission: "allow",

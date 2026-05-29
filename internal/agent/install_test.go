@@ -133,20 +133,21 @@ func TestComputeSelection_ForcedCodex(t *testing.T) {
 	require.False(t, sel.hookScriptsNeeded())
 }
 
-func TestComputeSelection_AntigravityNoStripWhenHooksKept(t *testing.T) {
+func TestComputeSelection_AntigravityOnly(t *testing.T) {
 	t.Parallel()
+
+	for _, a := range All() {
+		require.NotEqual(t, Agent("gemini"), a, "Gemini CLI agent should not be supported")
+	}
 
 	inst := &Installer{
 		WithHooks: true,
 	}
 	detected := map[Agent]bool{
-		Gemini:      true,
 		Antigravity: true,
 	}
 	sel := computeSelection(inst, detected, false)
-	require.True(t, sel.DidGemini)
 	require.True(t, sel.DidAntigravity)
-	require.False(t, sel.StripGeminiMarkdown)
 }
 
 func TestCopySkills_RemovesExtraAndCopiesRepo(t *testing.T) {

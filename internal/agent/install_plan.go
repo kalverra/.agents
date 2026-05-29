@@ -16,7 +16,7 @@ import (
 
 // Hook script basenames deployed to HooksDeployDir (must match deployHookScripts).
 func hookScriptNames() []string {
-	return []string{"rtk-prepend.sh", "claude-rtk.sh", "gemini-rtk.sh", "cursor-rtk.sh"}
+	return []string{"rtk-prepend.sh", "claude-rtk.sh", "cursor-rtk.sh"}
 }
 
 // InstallPlanReport is a JSON-serializable snapshot of the install plan (e.g. dry-run + --ai-output).
@@ -29,23 +29,20 @@ type InstallPlanReport struct {
 	LocalMerged string              `json:"local_merged"`
 }
 
-// installSelection captures which install branches run (mirrors installClaude / installGemini / installCursor / installCodex).
+// installSelection captures which install branches run (mirrors installClaude / installAntigravity / installCursor / installCodex).
 type installSelection struct {
-	DidClaude           bool
-	DidGemini           bool
-	DidAntigravity      bool
-	DidCursor           bool
-	DidCodex            bool
-	StripGeminiMarkdown bool
-	GeminiHooksMerge    bool
+	DidClaude      bool
+	DidAntigravity bool
+	DidCursor      bool
+	DidCodex       bool
 }
 
 func (s installSelection) anyAgent() bool {
-	return s.DidClaude || s.DidGemini || s.DidCursor || s.DidCodex
+	return s.DidClaude || s.DidAntigravity || s.DidCursor || s.DidCodex
 }
 
 func (s installSelection) hookScriptsNeeded() bool {
-	return s.DidClaude || s.GeminiHooksMerge || s.DidCursor
+	return s.DidClaude || s.DidAntigravity || s.DidCursor
 }
 
 // computeSelection derives install flags from detection and --targets without side effects.
@@ -56,17 +53,8 @@ func computeSelection(inst *Installer, detected map[Agent]bool, forcing bool) in
 		s.DidClaude = true
 	}
 
-	geminiWanted := TargetWanted(Gemini, inst.Targets) || TargetWanted(Antigravity, inst.Targets)
-	geminiDetected := detected[Gemini] || detected[Antigravity]
-	if geminiWanted && (geminiDetected || forcing) {
-		s.DidGemini = true
-		antigravityForced := forcing && Contains(inst.Targets, Antigravity)
-		needsMarkdownHooks := detected[Antigravity] || antigravityForced
-		s.StripGeminiMarkdown = inst.WithHooks && !needsMarkdownHooks
-		s.DidAntigravity = detected[Antigravity] || antigravityForced
-
-		geminiForced := forcing && Contains(inst.Targets, Gemini)
-		s.GeminiHooksMerge = inst.WithHooks && (detected[Gemini] || geminiForced)
+	if TargetWanted(Antigravity, inst.Targets) && (detected[Antigravity] || forcing) {
+		s.DidAntigravity = true
 	}
 
 	if TargetWanted(Cursor, inst.Targets) && (detected[Cursor] || forcing) {
@@ -126,7 +114,7 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 	}
 
 	if sel.DidClaude {
-		note := "full merge + hook sections"
+		note := "merge USER_AGENTS; strip hook sections"
 		if !inst.WithHooks {
 			note = "merge USER_AGENTS; strip hook delimiter lines only"
 		}
@@ -140,21 +128,12 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 		}
 	}
 
-	if sel.DidGemini {
-		note := "merge USER_AGENTS"
-		if sel.StripGeminiMarkdown {
-			note = "merge USER_AGENTS; strip hookable sections (Gemini CLI)"
-		} else if inst.WithHooks {
-			note = "merge USER_AGENTS; keep hook sections (Antigravity)"
-		}
+	if sel.DidAntigravity {
 		plan.Markdown = append(plan.Markdown, markdownPlanEntry{
-			Agent:   "Gemini / Antigravity",
-			Dest:    MarkdownDest(Gemini),
-			Summary: note,
+			Agent:   "Antigravity",
+			Dest:    MarkdownDest(Antigravity),
+			Summary: "merge USER_AGENTS; keep hookable instructions (no hook support)",
 		})
-		if sel.GeminiHooksMerge {
-			plan.HookMerges = append(plan.HookMerges, HookSettingsPath(Gemini))
-		}
 	}
 
 	if sel.DidCursor {
@@ -197,21 +176,12 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 			}
 			plan.Skills = append(plan.Skills, sp)
 		}
-		if sel.DidGemini {
-			plan.SkillsNotes = append(plan.SkillsNotes,
-				fmt.Sprintf(
-					"Gemini CLI: skip %s — gemini-cli loads universal skills from %s by default; copying there would duplicate skills and conflict",
-					SkillsDest(Gemini),
-					filepath.Join(inst.RepoRoot, "skills"),
-				),
-			)
-			if sel.DidAntigravity {
-				spA, err := inst.skillDestPlan("Antigravity", SkillsDest(Antigravity), skillDirs)
-				if err != nil {
-					return nil, err
-				}
-				plan.Skills = append(plan.Skills, spA)
+		if sel.DidAntigravity {
+			spA, err := inst.skillDestPlan("Antigravity", SkillsDest(Antigravity), skillDirs)
+			if err != nil {
+				return nil, err
 			}
+			plan.Skills = append(plan.Skills, spA)
 		}
 		if sel.DidCodex {
 			plan.SkillsNotes = append(plan.SkillsNotes,

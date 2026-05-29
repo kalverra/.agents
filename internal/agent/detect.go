@@ -13,8 +13,6 @@ func Detect(a Agent, verbose bool) bool {
 	switch a {
 	case Claude:
 		return detectClaude(verbose)
-	case Gemini:
-		return detectGemini(verbose)
 	case Antigravity:
 		return detectAntigravity(verbose)
 	case Cursor:
@@ -49,21 +47,6 @@ func detectClaude(verbose bool) bool {
 	d := filepath.Join(homeDir(), ".claude")
 	if isDir(d) {
 		vlog(verbose, "claude: ~/.claude exists")
-		return true
-	}
-	return false
-}
-
-func detectGemini(verbose bool) bool {
-	for _, name := range []string{"gemini", "gemini-cli"} {
-		if p, err := exec.LookPath(name); err == nil {
-			vlog(verbose, "%s: found in PATH (%s)", name, p)
-			return true
-		}
-	}
-	gd := GeminiConfigDir()
-	if isDir(gd) {
-		vlog(verbose, "gemini: config dir exists (%s)", gd)
 		return true
 	}
 	return false

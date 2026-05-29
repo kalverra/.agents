@@ -49,7 +49,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 
 	if !sel.anyAgent() {
 		output.Println("Nothing installed. Try: agents discover")
-		output.Println("Force paths with: agents install --targets claude,gemini,antigravity,cursor,codex")
+		output.Println("Force paths with: agents install --targets claude,antigravity,cursor,codex")
 		return nil, fmt.Errorf("no agents installed")
 	}
 
@@ -84,7 +84,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
-	_, didAntigravity, err := inst.installGemini(src, hooksDir, detected, forcing)
+	didAntigravity, err := inst.installAntigravity(src, detected, forcing)
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +119,6 @@ func installReportFromSelection(inst *Installer, sel installSelection) *InstallR
 	if sel.DidClaude {
 		report.Agents = append(report.Agents, "claude")
 	}
-	if sel.DidGemini {
-		report.Agents = append(report.Agents, "gemini")
-	}
 	if sel.DidAntigravity {
 		report.Agents = append(report.Agents, "antigravity")
 	}
@@ -155,39 +152,25 @@ func (inst *Installer) installClaude(src, hooksDir string, detected map[Agent]bo
 	return true, nil
 }
 
-// installGemini handles the Gemini/Antigravity installation logic.
-// Returns (didInstall, didAntigravity, err).
-func (inst *Installer) installGemini(src, hooksDir string, detected map[Agent]bool, forcing bool) (bool, bool, error) {
-	geminiWanted := TargetWanted(Gemini, inst.Targets) || TargetWanted(Antigravity, inst.Targets)
-	if !geminiWanted {
-		return false, false, nil
+// installAntigravity handles the Antigravity installation logic.
+// Returns (didInstall, err).
+func (inst *Installer) installAntigravity(src string, detected map[Agent]bool, forcing bool) (bool, error) {
+	if !TargetWanted(Antigravity, inst.Targets) {
+		return false, nil
 	}
-	geminiDetected := detected[Gemini] || detected[Antigravity]
-	if !geminiDetected && !forcing {
-		return false, false, nil
+	if !detected[Antigravity] && !forcing {
+		return false, nil
 	}
-	if !geminiDetected {
-		output.Warnf("gemini-cli / antigravity not detected; writing %s anyway (--targets).\n",
-			MarkdownDest(Gemini))
+	if !detected[Antigravity] {
+		output.Warnf("antigravity not detected; writing %s anyway (--targets).\n",
+			MarkdownDest(Antigravity))
 	}
 
-	antigravityForced := forcing && Contains(inst.Targets, Antigravity)
-	needsMarkdownHooks := detected[Antigravity] || antigravityForced
-	stripMarkdown := inst.WithHooks && !needsMarkdownHooks
-
-	if err := inst.deployMarkdown(src, MarkdownDest(Gemini), stripMarkdown); err != nil {
-		return false, false, err
+	if err := inst.deployMarkdown(src, MarkdownDest(Antigravity), false); err != nil {
+		return false, err
 	}
 
-	geminiForced := forcing && Contains(inst.Targets, Gemini)
-	if inst.WithHooks && (detected[Gemini] || geminiForced) {
-		if err := inst.installHooksForAgent(Gemini, hooksDir); err != nil {
-			return false, false, err
-		}
-	}
-
-	didAntigravity := detected[Antigravity] || antigravityForced
-	return true, didAntigravity, nil
+	return true, nil
 }
 
 func (inst *Installer) installCursor(src, hooksDir string, detected map[Agent]bool, forcing bool) (bool, error) {

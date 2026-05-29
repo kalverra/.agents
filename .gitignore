@@ -15,6 +15,7 @@ eval/new_results.json
 
 # Secrets
 .gemini/
+.antigravity/
 .claude/
 gha-creds-*.json
 

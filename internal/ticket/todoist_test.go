@@ -45,7 +45,7 @@ func TestTodoist_Fetch_success(t *testing.T) {
 				"next_cursor": "",
 			})
 		default:
-			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			assert.Failf(t, "unexpected request", "unexpected %s %s", r.Method, r.URL.String())
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -119,7 +119,7 @@ func TestTodoist_Fetch_commentsPagination(t *testing.T) {
 					"next_cursor": "",
 				})
 			default:
-				t.Fatalf("unexpected comments page %d", calls)
+				assert.Failf(t, "unexpected comments page", "unexpected comments page %d", calls)
 			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -202,8 +202,8 @@ func TestTodoist_Comment_success(t *testing.T) {
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Errorf("decode body: %v", err)
+		err := json.NewDecoder(r.Body).Decode(&body)
+		if !assert.NoError(t, err, "decode body") {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

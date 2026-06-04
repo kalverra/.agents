@@ -87,7 +87,7 @@ func TestJira_Fetch_rendersDescriptionAndCommentsAsMarkdown(t *testing.T) {
 				"startAt": 0, "maxResults": 50, "total": 1,
 			})
 		default:
-			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			assert.Failf(t, "unexpected request", "unexpected %s %s", r.Method, r.URL.String())
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -156,7 +156,7 @@ func TestJira_Fetch_success(t *testing.T) {
 				"total":      1,
 			})
 		default:
-			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			assert.Failf(t, "unexpected request", "unexpected %s %s", r.Method, r.URL.String())
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -189,19 +189,19 @@ func TestJira_Comment_success(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/rest/api/3/issue/TASK-9/comment" {
-			t.Errorf("unexpected %s %s", r.Method, r.URL.String())
+			assert.Failf(t, "unexpected request", "unexpected %s %s", r.Method, r.URL.String())
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Errorf("decode body: %v", err)
+			assert.NoError(t, err, "decode body")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		doc, ok := body["body"].(map[string]any)
 		if !ok {
-			t.Errorf("body is not a map[string]any")
+			assert.Fail(t, "body is not a map[string]any")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Customize the statusline for various CLI agents.
+// antigravity-cli: https://antigravity.google/docs/cli-statusline
+// claude-code: https://code.claude.com/docs/en/statusline
+
 type statuslineModel struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"display_name"`
@@ -36,17 +40,18 @@ type statuslineCurrentUsage struct {
 }
 
 type statuslineContextWindow struct {
-	UsedPercentage      float64                 `json:"used_percentage"`
-	TotalInputTokens    *int                    `json:"total_input_tokens"`
-	TotalOutputTokens   *int                    `json:"total_output_tokens"`
-	ThinkingTokens      *int                    `json:"thinking_tokens"`
-	ReasoningTokens     *int                    `json:"reasoning_tokens"`
-	ThoughtsTokens      *int                    `json:"thoughts_tokens"`
-	ThoughtsTokenCount  *int                    `json:"thoughts_token_count"`
-	ReasoningTokenCount *int                    `json:"reasoning_token_count"`
-	ThinkingTokenCount  *int                    `json:"thinking_token_count"`
-	TotalThinkingTokens *int                    `json:"total_thinking_tokens"`
-	CurrentUsage        *statuslineCurrentUsage `json:"current_usage"`
+	UsedPercentage       float64                 `json:"used_percentage"`
+	TotalInputTokens     *int                    `json:"total_input_tokens"`
+	TotalOutputTokens    *int                    `json:"total_output_tokens"`
+	ThinkingTokens       *int                    `json:"thinking_tokens"`
+	ReasoningTokens      *int                    `json:"reasoning_tokens"`
+	ThoughtsTokens       *int                    `json:"thoughts_tokens"`
+	ThoughtsTokenCount   *int                    `json:"thoughts_token_count"`
+	ReasoningTokenCount  *int                    `json:"reasoning_token_count"`
+	ThinkingTokenCount   *int                    `json:"thinking_token_count"`
+	TotalThinkingTokens  *int                    `json:"total_thinking_tokens"`
+	CacheReadInputTokens *int                    `json:"cache_read_input_tokens"`
+	CurrentUsage         *statuslineCurrentUsage `json:"current_usage"`
 }
 
 type statuslineTask struct {
@@ -170,6 +175,16 @@ func getOutputTokens(cw statuslineContextWindow) *int {
 	}
 	if cw.CurrentUsage != nil {
 		return cw.CurrentUsage.OutputTokens
+	}
+	return nil
+}
+
+func getCacheReadTokens(cw statuslineContextWindow) *int {
+	if cw.CacheReadInputTokens != nil {
+		return cw.CacheReadInputTokens
+	}
+	if cw.CurrentUsage != nil {
+		return cw.CurrentUsage.CacheReadInputTokens
 	}
 	return nil
 }
@@ -308,6 +323,11 @@ func getContextDisplay(ctxData statuslineContextWindow) string {
 	}
 
 	tokensParts = append(tokensParts, fmt.Sprintf("(%.1f%%)", ctxData.UsedPercentage))
+
+	cacheReadPtr := getCacheReadTokens(ctxData)
+	if cacheReadPtr != nil {
+		tokensParts = append(tokensParts, fmt.Sprintf("💾 %s", formatTokenCount(cacheReadPtr)))
+	}
 
 	return fmt.Sprintf("%s%s", color, strings.Join(tokensParts, " "))
 }

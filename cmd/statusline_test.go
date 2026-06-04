@@ -74,6 +74,16 @@ func TestGetContextDisplay(t *testing.T) {
 			},
 			expected: "\033[38;2;255;60;0m▲ 88.2k ▼ 61.1k (50.0%)",
 		},
+		{
+			name: "With Cache Reads",
+			ctxData: statuslineContextWindow{
+				UsedPercentage:       50.0,
+				TotalInputTokens:     new(88244),
+				TotalOutputTokens:    new(61074),
+				CacheReadInputTokens: new(1024),
+			},
+			expected: "\033[38;2;255;60;0m▲ 88.2k ▼ 61.1k (50.0%) 💾 1.0k",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,6 +226,42 @@ func TestParseAndBuildStatusline(t *testing.T) {
 				}
 			}`,
 			expected: "Gemini 3.5 Flash | ▲ 15.0k ▼ 500 🧠 400 (15.5%) | ~/Projects/testrig (mock-git-branch*)",
+		},
+		{
+			name: "Antigravity Cache Reads in context_window",
+			jsonInput: `{
+				"model": {
+					"id": "gemini-3.5-flash",
+					"display_name": "Gemini 3.5 Flash"
+				},
+				"cwd": "/Users/adamhamrick/Projects/testrig",
+				"context_window": {
+					"used_percentage": 15.5,
+					"total_input_tokens": 15000,
+					"total_output_tokens": 500,
+					"cache_read_input_tokens": 8000
+				}
+			}`,
+			expected: "Gemini 3.5 Flash | ▲ 15.0k ▼ 500 (15.5%) 💾 8.0k | ~/Projects/testrig (mock-git-branch*)",
+		},
+		{
+			name: "Antigravity Cache Reads in current_usage",
+			jsonInput: `{
+				"model": {
+					"id": "gemini-3.5-flash",
+					"display_name": "Gemini 3.5 Flash"
+				},
+				"cwd": "/Users/adamhamrick/Projects/testrig",
+				"context_window": {
+					"used_percentage": 15.5,
+					"total_input_tokens": 15000,
+					"total_output_tokens": 500,
+					"current_usage": {
+						"cache_read_input_tokens": 9000
+					}
+				}
+			}`,
+			expected: "Gemini 3.5 Flash | ▲ 15.0k ▼ 500 (15.5%) 💾 9.0k | ~/Projects/testrig (mock-git-branch*)",
 		},
 	}
 

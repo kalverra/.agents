@@ -7,8 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/kalverra/agents/internal/statuslinetrack"
 )
 
 // Customize the statusline for various CLI agents.
@@ -55,10 +58,14 @@ type statuslineContextWindow struct {
 }
 
 type statuslineTask struct {
+	Name   string `json:"name"`
 	Status string `json:"status"`
+	Index  *int   `json:"index"`
 }
 
 type statuslineSubagent struct {
+	Name   string `json:"name"`
+	Role   string `json:"role"`
 	Status string `json:"status"`
 }
 
@@ -73,17 +80,30 @@ type statuslinePR struct {
 	ReviewState string `json:"review_state"`
 }
 
+type statuslineEffort struct {
+	Level string `json:"level"`
+}
+
 type statuslineInputPayload struct {
 	Model           statuslineModel         `json:"model"`
 	CWD             string                  `json:"cwd"`
+	SessionID       string                  `json:"session_id"`
+	ConversationID  string                  `json:"conversation_id"`
 	VCS             statuslineVCS           `json:"vcs"`
 	ContextWindow   statuslineContextWindow `json:"context_window"`
 	BackgroundTasks []statuslineTask        `json:"background_tasks"`
 	Subagents       []statuslineSubagent    `json:"subagents"`
+	TaskCount       *int                    `json:"task_count"`
 	AgentState      string                  `json:"agent_state"`
 	Cost            statuslineCost          `json:"cost"`
+	Effort          statuslineEffort        `json:"effort"`
 	PR              *statuslinePR           `json:"pr"`
 }
+
+var (
+	statuslineTrackRoot = statuslinetrack.DefaultRoot
+	statuslineNow       = time.Now
+)
 
 func runCmd(dir string, name string, args ...string) (string, error) {
 	//nolint:gosec // G204: subprocess command generated dynamically
@@ -179,6 +199,173 @@ func getOutputTokens(cw statuslineContextWindow) *int {
 	return nil
 }
 
+var inactiveStatuslineStatuses = map[string]struct{}{
+	"done":      {},
+	"completed": {},
+	"failed":    {},
+	"stopped":   {},
+	"cancelled": {},
+	"canceled":  {},
+	"idle":      {},
+	"error":     {},
+}
+
+func isActiveStatuslineStatus(status string) bool {
+	if status == "" {
+		return true
+	}
+	_, inactive := inactiveStatuslineStatuses[strings.ToLower(status)]
+	return !inactive
+}
+
+func countActiveStatuslineTasks(tasks []statuslineTask) int {
+	count := 0
+	for _, task := range tasks {
+		if isActiveStatuslineStatus(task.Status) {
+			count++
+		}
+	}
+	return count
+}
+
+func getBackgroundTaskCount(payload statuslineInputPayload) int {
+	if payload.TaskCount != nil {
+		return *payload.TaskCount
+	}
+	return countActiveStatuslineTasks(payload.BackgroundTasks)
+}
+
+func getSubagentCount(subagents []statuslineSubagent) int {
+	count := 0
+	for _, subagent := range subagents {
+		if isActiveStatuslineStatus(subagent.Status) {
+			count++
+		}
+	}
+	return count
+}
+
+func formatCountLabel(count int, singular, plural string) string {
+	noun := plural
+	if count == 1 {
+		noun = singular
+	}
+	return fmt.Sprintf("%d %s", count, noun)
+}
+
+func formatDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	secs := int(d.Round(time.Second).Seconds())
+	if secs < 60 {
+		return fmt.Sprintf("%ds", secs)
+	}
+	mins := secs / 60
+	rem := secs % 60
+	if mins < 60 {
+		if rem == 0 {
+			return fmt.Sprintf("%dm", mins)
+		}
+		return fmt.Sprintf("%dm%ds", mins, rem)
+	}
+	hours := mins / 60
+	mins = mins % 60
+	if mins == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, mins)
+}
+
+func sessionKey(payload statuslineInputPayload) string {
+	if payload.ConversationID != "" {
+		return payload.ConversationID
+	}
+	if payload.SessionID != "" {
+		return payload.SessionID
+	}
+	if payload.CWD != "" {
+		return "cwd:" + payload.CWD
+	}
+	return "unknown"
+}
+
+func taskTrackerKey(task statuslineTask, fallbackIndex int) string {
+	if task.Index != nil {
+		return fmt.Sprintf("%d", *task.Index)
+	}
+	return fmt.Sprintf("i:%d", fallbackIndex)
+}
+
+func taskDisplayName(task statuslineTask, fallbackIndex int) string {
+	if task.Name != "" {
+		return task.Name
+	}
+	return fmt.Sprintf("terminal %d", fallbackIndex+1)
+}
+
+func activeBackgroundTasks(tasks []statuslineTask) []statuslinetrack.ActiveTask {
+	var active []statuslinetrack.ActiveTask
+	for i, task := range tasks {
+		if !isActiveStatuslineStatus(task.Status) {
+			continue
+		}
+		sortKey := i
+		if task.Index != nil {
+			sortKey = *task.Index
+		}
+		active = append(active, statuslinetrack.ActiveTask{
+			Key:  taskTrackerKey(task, i),
+			Name: taskDisplayName(task, i),
+			Sort: sortKey,
+		})
+	}
+	return active
+}
+
+func formatBackgroundTasksLine(entries []statuslinetrack.Entry, now time.Time) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	parts := make([]string, len(entries))
+	for i, entry := range entries {
+		parts[i] = fmt.Sprintf("`%s` (%s)", entry.Name, formatDuration(now.Sub(entry.StartedAt)))
+	}
+	return "🛠️ " + strings.Join(parts, " · ")
+}
+
+func backgroundTasksDisplay(payload statuslineInputPayload, now time.Time) string {
+	active := activeBackgroundTasks(payload.BackgroundTasks)
+	if len(active) > 0 {
+		entries, err := statuslinetrack.Sync(statuslineTrackRoot(), sessionKey(payload), active, now)
+		if err == nil {
+			if line := formatBackgroundTasksLine(entries, now); line != "" {
+				return line
+			}
+		}
+	}
+
+	if n := getBackgroundTaskCount(payload); n > 0 {
+		return fmt.Sprintf("🛠️ %s", formatCountLabel(n, "terminal", "terminals"))
+	}
+	return ""
+}
+
+func getBackgroundTasksDisplay(payload statuslineInputPayload) []string {
+	return getBackgroundTasksDisplayAt(payload, statuslineNow())
+}
+
+func getBackgroundTasksDisplayAt(payload statuslineInputPayload, now time.Time) []string {
+	var parts []string
+	if line := backgroundTasksDisplay(payload, now); line != "" {
+		parts = append(parts, line)
+	}
+	if n := getSubagentCount(payload.Subagents); n > 0 {
+		parts = append(parts, fmt.Sprintf("🤖 %s", formatCountLabel(n, "agent", "agents")))
+	}
+	return parts
+}
+
 func getCacheReadTokens(cw statuslineContextWindow) *int {
 	if cw.CacheReadInputTokens != nil {
 		return cw.CacheReadInputTokens
@@ -189,12 +376,24 @@ func getCacheReadTokens(cw statuslineContextWindow) *int {
 	return nil
 }
 
-func parseAndBuildStatusline(jsonData []byte) (string, error) {
-	var payload statuslineInputPayload
-	if err := json.Unmarshal(jsonData, &payload); err != nil {
-		return "", err
+func formatEffortLevel(level string) string {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "low":
+		return "Low"
+	case "medium":
+		return "Medium"
+	case "high":
+		return "High"
+	case "xhigh":
+		return "XHigh"
+	case "max":
+		return "Max"
+	default:
+		return ""
 	}
+}
 
+func formatModelDisplay(payload statuslineInputPayload) string {
 	modelName := payload.Model.DisplayName
 	if modelName == "" {
 		modelName = payload.Model.ID
@@ -202,6 +401,19 @@ func parseAndBuildStatusline(jsonData []byte) (string, error) {
 	if modelName == "" {
 		modelName = "No Model"
 	}
+	if effort := formatEffortLevel(payload.Effort.Level); effort != "" {
+		return fmt.Sprintf("%s (%s)", modelName, effort)
+	}
+	return modelName
+}
+
+func parseAndBuildStatusline(jsonData []byte) (string, error) {
+	var payload statuslineInputPayload
+	if err := json.Unmarshal(jsonData, &payload); err != nil {
+		return "", err
+	}
+
+	modelName := formatModelDisplay(payload)
 
 	cwd := payload.CWD
 	if cwd == "" {
@@ -264,6 +476,8 @@ func parseAndBuildStatusline(jsonData []byte) (string, error) {
 		costStr := fmt.Sprintf("💰 $%.2f", payload.Cost.TotalCostUSD)
 		parts = append(parts, costStr)
 	}
+
+	parts = append(parts, getBackgroundTasksDisplay(payload)...)
 
 	return strings.Join(parts, " | "), nil
 }

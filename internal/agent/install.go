@@ -72,7 +72,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 	}
 
 	var hooksDir string
-	if inst.WithHooks && sel.hookScriptsNeeded() {
+	if inst.WithHooks && sel.hookScriptsNeeded() && len(hookScriptNames()) > 0 {
 		hooksDir, err = inst.deployHookScripts()
 		if err != nil {
 			return nil, fmt.Errorf("deploying hook scripts: %w", err)
@@ -112,7 +112,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 
 func installReportFromSelection(inst *Installer, sel installSelection) *InstallReport {
 	report := &InstallReport{
-		Hooks:  inst.WithHooks && sel.hookScriptsNeeded(),
+		Hooks:  inst.WithHooks && sel.hookScriptsNeeded() && hooksConfigured(inst.RepoRoot),
 		Skills: inst.WithSkills,
 		DryRun: false,
 	}
@@ -356,6 +356,9 @@ func (inst *Installer) deployHookScripts() (string, error) {
 	if err := os.MkdirAll(destDir, 0o750); err != nil {
 		return "", err
 	}
+	if len(scripts) == 0 {
+		return destDir, nil
+	}
 	for _, s := range scripts {
 		data, err := os.ReadFile(filepath.Join(srcDir, s)) //nolint:gosec // srcDir is a repo-internal path
 		if err != nil {
@@ -376,9 +379,12 @@ func (inst *Installer) installHooksForAgent(a Agent, hooksDir string) error {
 		return nil
 	}
 
-	snippetPath := filepath.Join(inst.RepoRoot, "hooks", snippetName)
+	snippetPath := hookSnippetPath(inst.RepoRoot, a)
 	raw, err := os.ReadFile(snippetPath) //nolint:gosec // snippetPath is a repo-internal path
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("reading snippet %s: %w", snippetName, err)
 	}
 

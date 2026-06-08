@@ -4,10 +4,58 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFormatModelDisplay(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		payload  statuslineInputPayload
+		expected string
+	}{
+		{
+			name: "display name only",
+			payload: statuslineInputPayload{
+				Model: statuslineModel{DisplayName: "Sonnet 4.6"},
+			},
+			expected: "Sonnet 4.6",
+		},
+		{
+			name: "claude effort level",
+			payload: statuslineInputPayload{
+				Model:  statuslineModel{DisplayName: "Sonnet 4.6"},
+				Effort: statuslineEffort{Level: "high"},
+			},
+			expected: "Sonnet 4.6 (High)",
+		},
+		{
+			name: "xhigh effort level",
+			payload: statuslineInputPayload{
+				Model:  statuslineModel{DisplayName: "Opus 4.6"},
+				Effort: statuslineEffort{Level: "xhigh"},
+			},
+			expected: "Opus 4.6 (XHigh)",
+		},
+		{
+			name: "empty effort omitted",
+			payload: statuslineInputPayload{
+				Model:  statuslineModel{DisplayName: "Gemini 3.5 Flash"},
+				Effort: statuslineEffort{Level: ""},
+			},
+			expected: "Gemini 3.5 Flash",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, formatModelDisplay(tt.payload))
+		})
+	}
+}
 
 func TestGetContextColor(t *testing.T) {
 	t.Parallel()
@@ -99,13 +147,126 @@ func stripAnsi(str string) string {
 	return re.ReplaceAllString(str, "")
 }
 
-//nolint:paralleltest // cannot run in parallel as it modifies package-level getGitInfo
+//nolint:paralleltest // mutates package-level statuslineTrackRoot
+func TestGetBackgroundTasksDisplay(t *testing.T) {
+	root := t.TempDir()
+	oldRoot := statuslineTrackRoot
+	statuslineTrackRoot = func() string { return root }
+	defer func() { statuslineTrackRoot = oldRoot }()
+
+	start := time.Date(2026, 6, 8, 14, 0, 0, 0, time.UTC)
+	later := start.Add(2*time.Minute + 15*time.Second)
+
+	tests := []struct {
+		name     string
+		payload  statuslineInputPayload
+		now      time.Time
+		expected []string
+	}{
+		{
+			name:     "empty",
+			payload:  statuslineInputPayload{},
+			now:      start,
+			expected: nil,
+		},
+		{
+			name: "named terminals with tracked duration",
+			payload: statuslineInputPayload{
+				ConversationID: "conv-1",
+				BackgroundTasks: []statuslineTask{
+					{Status: "running", Name: "go test ./...", Index: new(0)},
+					{Status: "running", Name: "npm run build", Index: new(1)},
+					{Status: "completed", Name: "done"},
+				},
+			},
+			now: start,
+			expected: []string{
+				"🛠️ `go test ./...` (0s) · `npm run build` (0s)",
+			},
+		},
+		{
+			name: "named terminals after elapsed time",
+			payload: statuslineInputPayload{
+				ConversationID: "conv-1",
+				BackgroundTasks: []statuslineTask{
+					{Status: "running", Name: "go test ./...", Index: new(0)},
+					{Status: "running", Name: "npm run build", Index: new(1)},
+				},
+			},
+			now: later,
+			expected: []string{
+				"🛠️ `go test ./...` (2m15s) · `npm run build` (2m15s)",
+			},
+		},
+		{
+			name: "task_count fallback without task details",
+			payload: statuslineInputPayload{
+				TaskCount: new(3),
+			},
+			now:      start,
+			expected: []string{"🛠️ 3 terminals"},
+		},
+		{
+			name: "active subagents",
+			payload: statuslineInputPayload{
+				Subagents: []statuslineSubagent{
+					{Status: "running"},
+					{Status: "working"},
+				},
+			},
+			now:      start,
+			expected: []string{"🤖 2 agents"},
+		},
+		{
+			name: "terminals and agents",
+			payload: statuslineInputPayload{
+				ConversationID: "conv-2",
+				BackgroundTasks: []statuslineTask{
+					{Status: "running", Name: "go test ./...", Index: new(0)},
+				},
+				Subagents: []statuslineSubagent{{Status: "running"}},
+			},
+			now:      start,
+			expected: []string{"🛠️ `go test ./...` (0s)", "🤖 1 agent"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, getBackgroundTasksDisplayAt(tt.payload, tt.now))
+		})
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		d        time.Duration
+		expected string
+	}{
+		{45 * time.Second, "45s"},
+		{90 * time.Second, "1m30s"},
+		{5 * time.Minute, "5m"},
+		{2*time.Hour + 15*time.Minute, "2h15m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, formatDuration(tt.d))
+		})
+	}
+}
+
+//nolint:paralleltest // cannot run in parallel as it modifies package-level getGitInfo/statuslineTrackRoot
 func TestParseAndBuildStatusline(t *testing.T) {
 	oldGetGitInfo := getGitInfo
 	defer func() { getGitInfo = oldGetGitInfo }()
 	getGitInfo = func(_ string) (string, bool) {
 		return "mock-git-branch", true
 	}
+
+	oldRoot := statuslineTrackRoot
+	statuslineTrackRoot = func() string { return t.TempDir() }
+	defer func() { statuslineTrackRoot = oldRoot }()
 
 	tests := []struct {
 		name      string
@@ -154,6 +315,29 @@ func TestParseAndBuildStatusline(t *testing.T) {
 				}
 			}`,
 			expected: "Sonnet 3.5 | ▲ 42.0k ▼ 1.2k (42.0%) | ~/Projects/testrig (mock-git-branch*) | 💰 $0.05",
+		},
+		{
+			name: "Claude Payload with effort level",
+			jsonInput: `{
+				"model": {
+					"id": "claude-sonnet-4-6",
+					"display_name": "Sonnet 4.6"
+				},
+				"cwd": "/Users/adamhamrick/Projects/testrig",
+				"context_window": {
+					"used_percentage": 42.0,
+					"total_input_tokens": 42000,
+					"total_output_tokens": 1200
+				},
+				"effort": {
+					"level": "high"
+				},
+				"cost": {
+					"total_cost_usd": 0.0543,
+					"total_duration_ms": 125000
+				}
+			}`,
+			expected: "Sonnet 4.6 (High) | ▲ 42.0k ▼ 1.2k (42.0%) | ~/Projects/testrig (mock-git-branch*) | 💰 $0.05",
 		},
 		{
 			name: "Claude Payload with total_thinking_tokens",
@@ -262,6 +446,44 @@ func TestParseAndBuildStatusline(t *testing.T) {
 				}
 			}`,
 			expected: "Gemini 3.5 Flash | ▲ 15.0k ▼ 500 (15.5%) 💾 9.0k | ~/Projects/testrig (mock-git-branch*)",
+		},
+		{
+			name: "Background terminals and subagents",
+			jsonInput: `{
+				"model": {
+					"id": "gemini-3.5-flash",
+					"display_name": "Gemini 3.5 Flash"
+				},
+				"cwd": "/Users/adamhamrick/Projects/testrig",
+				"conversation_id": "conv-parse-1",
+				"context_window": {
+					"used_percentage": 12.3
+				},
+				"agent_state": "tool_use",
+				"background_tasks": [
+					{"status": "running", "name": "go test ./...", "index": 0},
+					{"status": "running", "name": "npm run build", "index": 1}
+				],
+				"subagents": [
+					{"status": "running"}
+				]
+			}`,
+			expected: "Gemini 3.5 Flash | (12.3%) | ~/Projects/testrig (mock-git-branch*) | tool_use | 🛠️ `go test ./...` (0s) · `npm run build` (0s) | 🤖 1 agent",
+		},
+		{
+			name: "Task count field",
+			jsonInput: `{
+				"model": {
+					"id": "gemini-3.5-flash",
+					"display_name": "Gemini 3.5 Flash"
+				},
+				"cwd": "/Users/adamhamrick/Projects/testrig",
+				"context_window": {
+					"used_percentage": 12.3
+				},
+				"task_count": 4
+			}`,
+			expected: "Gemini 3.5 Flash | (12.3%) | ~/Projects/testrig (mock-git-branch*) | 🛠️ 4 terminals",
 		},
 	}
 

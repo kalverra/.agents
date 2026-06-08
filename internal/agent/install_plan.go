@@ -16,7 +16,31 @@ import (
 
 // Hook script basenames deployed to HooksDeployDir (must match deployHookScripts).
 func hookScriptNames() []string {
-	return []string{"rtk-prepend.sh", "claude-rtk.sh", "cursor-rtk.sh"}
+	return nil
+}
+
+func hookSnippetPath(repoRoot string, a Agent) string {
+	name := HookSnippetFile(a)
+	if name == "" {
+		return ""
+	}
+	return filepath.Join(repoRoot, "hooks", name)
+}
+
+func hasHookSnippet(repoRoot string, a Agent) bool {
+	path := hookSnippetPath(repoRoot, a)
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func hooksConfigured(repoRoot string) bool {
+	if len(hookScriptNames()) > 0 {
+		return true
+	}
+	return hasHookSnippet(repoRoot, Claude) || hasHookSnippet(repoRoot, Cursor)
 }
 
 // InstallPlanReport is a JSON-serializable snapshot of the install plan (e.g. dry-run + --ai-output).
@@ -102,7 +126,7 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 		LocalMerged: filepath.Join(inst.RepoRoot, "GLOBAL_AGENTS.local.md"),
 	}
 
-	if inst.WithHooks && sel.hookScriptsNeeded() {
+	if inst.WithHooks && sel.hookScriptsNeeded() && len(hookScriptNames()) > 0 {
 		hd := HooksDeployDir()
 		srcDir := filepath.Join(inst.RepoRoot, "hooks")
 		for _, name := range hookScriptNames() {
@@ -123,7 +147,7 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 			Dest:    MarkdownDest(Claude),
 			Summary: note,
 		})
-		if inst.WithHooks {
+		if inst.WithHooks && hasHookSnippet(inst.RepoRoot, Claude) {
 			plan.HookMerges = append(plan.HookMerges, HookSettingsPath(Claude))
 		}
 	}
@@ -142,7 +166,7 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 			Dest:    MarkdownDest(Cursor),
 			Summary: "frontmatter + merged GLOBAL_AGENTS.md",
 		})
-		if inst.WithHooks {
+		if inst.WithHooks && hasHookSnippet(inst.RepoRoot, Cursor) {
 			hpath := HookSettingsPath(Cursor)
 			extra := filepath.Join(inst.RepoRoot, "hooks", "cursor-session-start-snippet.json")
 			if _, err := os.Stat(extra); err == nil {

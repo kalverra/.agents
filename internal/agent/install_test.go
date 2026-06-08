@@ -22,7 +22,7 @@ func TestMergeHooksFromSnippet_CursorSnippetIsFlatPreToolUse(t *testing.T) {
 			"preToolUse": []any{
 				map[string]any{
 					"type":    "command",
-					"command": "/fake/hooks/cursor-rtk.sh",
+					"command": "/fake/hooks/example.sh",
 					"matcher": "run_shell_command",
 				},
 			},
@@ -54,42 +54,22 @@ func TestMergeHooksFromSnippet_CursorSnippetIsFlatPreToolUse(t *testing.T) {
 	_, hasNestedHooks := entry["hooks"]
 	require.False(t, hasNestedHooks, "Cursor hook entries must not use nested hooks array")
 
-	require.Equal(t, "/fake/hooks/cursor-rtk.sh", entry["command"])
+	require.Equal(t, "/fake/hooks/example.sh", entry["command"])
 	require.Equal(t, "run_shell_command", entry["matcher"])
 	require.Equal(t, "command", entry["type"])
 }
 
-func TestCursorHooksSnippetOnDiskIsFlat(t *testing.T) {
+func TestHooksConfigured_NoRTKHooks(t *testing.T) {
 	t.Parallel()
 
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	path := filepath.Join(repoRoot, "hooks", "cursor-hooks-snippet.json")
-	//nolint:gosec // G304: fixed repo path from runtime.Caller, not user input
-	raw, err := os.ReadFile(path)
-	require.NoError(t, err)
 
-	var snippet map[string]any
-	require.NoError(t, json.Unmarshal(raw, &snippet))
-
-	hooksSection, ok := snippet["hooks"].(map[string]any)
-	require.True(t, ok)
-	arr, ok := hooksSection["preToolUse"].([]any)
-	require.True(t, ok)
-	require.NotEmpty(t, arr)
-
-	for i, item := range arr {
-		entry, ok := item.(map[string]any)
-		require.True(t, ok, "preToolUse[%d]", i)
-		_, nested := entry["hooks"]
-		require.False(
-			t,
-			nested,
-			"cursor-hooks-snippet.json must use Cursor flat hook objects, not nested hooks[] (see create-hook skill)",
-		)
-		require.NotEmpty(t, entry["command"])
-	}
+	require.Empty(t, hookScriptNames())
+	require.False(t, hasHookSnippet(repoRoot, Claude))
+	require.False(t, hasHookSnippet(repoRoot, Cursor))
+	require.False(t, hooksConfigured(repoRoot))
 }
 
 func TestSkillDestPlan_ListsRemovedVersusRepo(t *testing.T) {

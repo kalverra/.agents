@@ -26,8 +26,13 @@ Never skip test. Never implement before test. Always include test and implementa
 </style>
 
 <tools>
-<rule>Required CLI missing: warn; prompt install.</rule>
-<hookable name="rtk"><rule>Prepend "rtk" to ALL shell commands.</rule></hookable>
+<rule name="rtk">Prepend "rtk" to ALL shell commands for a concise output. Omit if you need the full output.</rule>
+<rule name="rg">
+Prefer `rg` over `grep` for text search, especially when searching codebases.
+</rule>
+<rule name="codegraph">
+Use `codegraph` MCP tools to explore codebases. If not available, prompt user to `codegraph init`
+</rule>
 <rule name="documentation">
 MANDATORY: Use the "find-docs" skill (ctx7) for ANY library or package documentation lookups.
 - DO NOT answer from memory.
@@ -37,6 +42,6 @@ MANDATORY: Use the "find-docs" skill (ctx7) for ANY library or package documenta
 </rule>
 <rule name="web_extraction">
 MANDATORY: Use "scrapling" for ALL web content extraction. DO NOT answer from memory.
-Command: `scrapling extract fetch --ai-targeted [URL] tmp.md && cat tmp.md && rm tmp.md`
+Command: `scrapling extract fetch --ai-targeted [URL] [target_file].md`
 </rule>
 </tools>

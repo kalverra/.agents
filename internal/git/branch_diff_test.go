@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	gogit "github.com/go-git/go-git/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,12 +30,12 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "feature commit ahead of main",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
-				checkoutBranch(t, repo, "feature", true)
-				addAndCommit(t, repo, dir, "feature.txt", "feature line\n", "feature work")
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+				checkoutBranch(t, dir, "feature", true)
+				addAndCommit(t, dir, "feature.txt", "feature line\n", "feature work")
 				return dir, BranchDiffOptions{}
 			},
 			wantBase:    "main",
@@ -45,12 +44,12 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "unstaged worktree change",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
-				checkoutBranch(t, repo, "feature", true)
-				addAndCommit(t, repo, dir, "feature.txt", "committed\n", "feature work")
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+				checkoutBranch(t, dir, "feature", true)
+				addAndCommit(t, dir, "feature.txt", "committed\n", "feature work")
 				writeFile(t, dir, "feature.txt", "committed\nlocal edit\n")
 				return dir, BranchDiffOptions{}
 			},
@@ -60,16 +59,13 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "staged change without commit",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
-				checkoutBranch(t, repo, "feature", true)
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+				checkoutBranch(t, dir, "feature", true)
 				writeFile(t, dir, "staged.txt", "staged content\n")
-				w, err := repo.Worktree()
-				require.NoError(t, err)
-				_, err = w.Add("staged.txt")
-				require.NoError(t, err)
+				runGitCmd(t, dir, "add", "staged.txt")
 				return dir, BranchDiffOptions{}
 			},
 			wantBase:    "main",
@@ -78,10 +74,10 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "clean on default branch",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
 				return dir, BranchDiffOptions{}
 			},
 			wantBase:  "main",
@@ -90,11 +86,11 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "explicit base override",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				addAndCommit(t, repo, dir, "second.txt", "second\n", "second")
-				checkoutBranch(t, repo, "feature", true)
-				addAndCommit(t, repo, dir, "feature.txt", "feature\n", "feature")
+				dir := initTestRepo(t)
+				addAndCommit(t, dir, "README.md", "base\n", "init")
+				addAndCommit(t, dir, "second.txt", "second\n", "second")
+				checkoutBranch(t, dir, "feature", true)
+				addAndCommit(t, dir, "feature.txt", "feature\n", "feature")
 				return dir, BranchDiffOptions{Base: "master"}
 			},
 			wantBase:    "master",
@@ -103,12 +99,12 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "binary file change",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommitBytes(t, repo, dir, "data.bin", []byte{0x00, 0x01}, "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
-				checkoutBranch(t, repo, "feature", true)
-				addAndCommitBytes(t, repo, dir, "data.bin", []byte{0x00, 0x02}, "update binary")
+				dir := initTestRepo(t)
+				mainHash := addAndCommitBytes(t, dir, "data.bin", []byte{0x00, 0x01}, "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+				checkoutBranch(t, dir, "feature", true)
+				addAndCommitBytes(t, dir, "data.bin", []byte{0x00, 0x02}, "update binary")
 				return dir, BranchDiffOptions{}
 			},
 			wantBase: "main",
@@ -120,19 +116,15 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "deleted file on branch",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "keep.txt", "stay\n", "init")
-				addAndCommit(t, repo, dir, "remove.txt", "gone\n", "add remove")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
-				checkoutBranch(t, repo, "feature", true)
-				w, err := repo.Worktree()
-				require.NoError(t, err)
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "keep.txt", "stay\n", "init")
+				addAndCommit(t, dir, "remove.txt", "gone\n", "add remove")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+				checkoutBranch(t, dir, "feature", true)
 				require.NoError(t, os.Remove(filepath.Join(dir, "remove.txt")))
-				_, err = w.Add("remove.txt")
-				require.NoError(t, err)
-				_, err = w.Commit("delete file", &gogit.CommitOptions{Author: testAuthor})
-				require.NoError(t, err)
+				runGitCmd(t, dir, "add", "remove.txt")
+				runGitCmd(t, dir, "commit", "-m", "delete file")
 				return dir, BranchDiffOptions{}
 			},
 			wantBase: "main",
@@ -144,10 +136,10 @@ func TestBranchDiff(t *testing.T) {
 		{
 			name: "local changes on default branch",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
 				writeFile(t, dir, "README.md", "base\nlocal edit\n")
 				return dir, BranchDiffOptions{}
 			},
@@ -200,11 +192,44 @@ func TestBranchDiff(t *testing.T) {
 func TestBranchDiffDetachedHEAD(t *testing.T) {
 	t.Parallel()
 
-	dir, repo := initTestRepo(t)
-	hash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-	detachHEAD(t, repo, hash)
+	dir := initTestRepo(t)
+	hash := addAndCommit(t, dir, "README.md", "base\n", "init")
+	detachHEAD(t, dir, hash)
 
 	_, err := BranchDiff(dir, BranchDiffOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "detached")
+}
+
+//nolint:paralleltest // modifies global environment variable HOME
+func TestBranchDiffGlobalIgnore(t *testing.T) {
+	oldHome := os.Getenv("HOME")
+	t.Cleanup(func() {
+		_ = os.Setenv("HOME", oldHome)
+	})
+
+	homeDir := t.TempDir()
+	_ = os.Setenv("HOME", homeDir)
+
+	gitconfig := filepath.Join(homeDir, ".gitconfig")
+	globalIgnorePath := filepath.Join(homeDir, ".gitignore_global")
+	err := os.WriteFile(gitconfig, []byte("[core]\n\texcludesfile = ~/.gitignore_global\n"), 0600)
+	require.NoError(t, err)
+
+	err = os.WriteFile(globalIgnorePath, []byte("*.ignored\n"), 0600)
+	require.NoError(t, err)
+
+	dir := initTestRepo(t)
+	mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+	renameDefaultBranch(t, dir, "main")
+	setOriginDefault(t, dir, "main", mainHash)
+
+	writeFile(t, dir, "temp.ignored", "some ignored content\n")
+
+	result, err := BranchDiff(dir, BranchDiffOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Empty(t, result.Patch)
+	assert.Equal(t, 0, result.Stats.FilesChanged)
 }

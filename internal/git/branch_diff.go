@@ -3,13 +3,11 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
-
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 // BranchDiffOptions configures BranchDiff.
@@ -47,248 +45,325 @@ type BranchDiffResult struct {
 	Patch           string     `json:"patch"`
 }
 
+type fileChange struct {
+	path   string
+	status string
+}
+
+type fileStats struct {
+	additions int
+	deletions int
+	binary    bool
+}
+
+type fileEntry struct {
+	path      string
+	status    string
+	additions int
+	deletions int
+	patch     string
+	binary    bool
+}
+
 // BranchDiff returns all changes since merge-base with the base branch, including worktree changes.
 func BranchDiff(dir string, opts BranchDiffOptions) (*BranchDiffResult, error) {
-	repo, err := gogit.PlainOpenWithOptions(dir, &gogit.PlainOpenOptions{DetectDotGit: true})
+	repoPath, err := gitOutput(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return nil, fmt.Errorf("opening repository: %w", err)
+		return nil, fmt.Errorf("not a git repository (or any parent): %w", err)
 	}
 
-	repoPath, err := repoRoot(repo, dir)
+	currentBranch, err := gitOutput(dir, "branch", "--show-current")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not determine current branch: %w", err)
 	}
-
-	headRef, err := repo.Head()
-	if err != nil {
-		return nil, fmt.Errorf("reading HEAD: %w", err)
-	}
-	if !headRef.Name().IsBranch() {
+	if currentBranch == "" {
 		return nil, fmt.Errorf("HEAD is detached; check out a branch first")
-	}
-
-	headCommit, err := repo.CommitObject(headRef.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("reading HEAD commit: %w", err)
 	}
 
 	baseBranch := opts.Base
 	if baseBranch == "" {
-		baseBranch, err = DetectDefaultBranch(repo)
+		baseBranch, err = DetectDefaultBranch(dir)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	baseCommit, err := resolveBranchCommit(repo, baseBranch)
+	headCommit, err := gitOutput(dir, "rev-parse", "HEAD")
 	if err != nil {
-		return nil, fmt.Errorf("resolving base branch %q: %w", baseBranch, err)
+		return nil, fmt.Errorf("reading HEAD commit: %w", err)
 	}
 
-	mergeBases, err := headCommit.MergeBase(baseCommit)
+	mergeBase, err := gitOutput(dir, "merge-base", baseBranch, "HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("finding merge base: %w", err)
 	}
-	if len(mergeBases) == 0 {
-		return nil, fmt.Errorf("no merge base between %s and %s", headRef.Name().Short(), baseBranch)
-	}
-	mergeBase := mergeBases[0]
 
-	baseTree, err := mergeBase.Tree()
+	nameStatusOut, err := gitOutput(dir, "diff", "--name-status", "--no-renames", "-z", mergeBase)
 	if err != nil {
-		return nil, fmt.Errorf("reading merge-base tree: %w", err)
+		return nil, fmt.Errorf("reading diff name status: %w", err)
 	}
+	trackedChanges := parseNameStatus(nameStatusOut)
 
-	headTree, err := headCommit.Tree()
+	numstatOut, err := gitOutput(dir, "diff", "--numstat", "--no-renames", "-z", mergeBase)
 	if err != nil {
-		return nil, fmt.Errorf("reading HEAD tree: %w", err)
+		return nil, fmt.Errorf("reading diff numstat: %w", err)
 	}
+	trackedStats := parseNumstat(numstatOut)
 
-	worktree, err := repo.Worktree()
+	untrackedOut, err := gitOutput(dir, "ls-files", "--others", "--exclude-standard", "-z")
 	if err != nil {
-		return nil, fmt.Errorf("reading worktree: %w", err)
+		return nil, fmt.Errorf("listing untracked files: %w", err)
 	}
+	untrackedFiles := parseUntracked(untrackedOut)
 
-	status, err := worktree.Status()
-	if err != nil {
-		return nil, fmt.Errorf("reading worktree status: %w", err)
-	}
-
-	idx, err := repo.Storer.Index()
-	if err != nil {
-		return nil, fmt.Errorf("reading index: %w", err)
+	contextLines := opts.ContextLines
+	if contextLines <= 0 {
+		contextLines = 3
 	}
 
-	idxMap := indexMap(idx)
-	paths, err := collectPaths(baseTree, headTree, status)
+	combinedDiff, err := gitOutput(dir, "diff", "--no-renames", fmt.Sprintf("-U%d", contextLines), mergeBase)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("running git diff: %w", err)
 	}
+	filePatches := parseCombinedDiff(combinedDiff, trackedChanges)
+
+	allFiles := make(map[string]fileEntry)
+
+	for _, tc := range trackedChanges {
+		stats := trackedStats[tc.path]
+		patch := filePatches[tc.path]
+
+		status := tc.status
+		if stats.binary {
+			status = "binary"
+		}
+
+		allFiles[tc.path] = fileEntry{
+			path:      tc.path,
+			status:    status,
+			additions: stats.additions,
+			deletions: stats.deletions,
+			patch:     patch,
+			binary:    stats.binary,
+		}
+	}
+
+	for _, path := range untrackedFiles {
+		fe, err := readUntrackedFile(repoPath, path)
+		if err != nil {
+			continue // file may have vanished between ls-files and read
+		}
+		allFiles[path] = fe
+	}
+
+	var paths []string
+	for path := range allFiles {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
 
 	fileDiffs := make([]FileDiff, 0, len(paths))
-
-	var patchBuf strings.Builder
 	var stats DiffStats
+	var patchBuf strings.Builder
 
 	for _, path := range paths {
-		oldSnap, err := treeFileSnapshot(baseTree, path)
-		if err != nil {
-			return nil, fmt.Errorf("reading merge-base file %q: %w", path, err)
-		}
-
-		newSnap, err := effectiveFileSnapshot(repo, repoPath, headTree, idxMap, status, path)
-		if err != nil {
-			return nil, fmt.Errorf("reading current file %q: %w", path, err)
-		}
-
-		if oldSnap.equal(newSnap) {
-			continue
-		}
-
-		if oldSnap.binary || newSnap.binary {
-			fileDiffs = append(fileDiffs, FileDiff{
-				Path:   path,
-				Status: fileStatusLabel(oldSnap.exists, newSnap.exists, true),
-			})
-			stats.FilesChanged++
-			continue
-		}
-
-		filePatch, additions, deletions := unifiedPatch(path, oldSnap.text, newSnap.text, opts.ContextLines)
+		fe := allFiles[path]
 		fileDiffs = append(fileDiffs, FileDiff{
-			Path:      path,
-			Status:    fileStatusLabel(oldSnap.exists, newSnap.exists, false),
-			Additions: additions,
-			Deletions: deletions,
-			Patch:     filePatch,
+			Path:      fe.path,
+			Status:    fe.status,
+			Additions: fe.additions,
+			Deletions: fe.deletions,
+			Patch:     fe.patch,
 		})
-		patchBuf.WriteString(filePatch)
+
+		if fe.patch != "" {
+			patchBuf.WriteString(fe.patch)
+			if !strings.HasSuffix(fe.patch, "\n") {
+				patchBuf.WriteByte('\n')
+			}
+		}
+
 		stats.FilesChanged++
-		stats.Insertions += additions
-		stats.Deletions += deletions
+		stats.Insertions += fe.additions
+		stats.Deletions += fe.deletions
 	}
 
 	return &BranchDiffResult{
 		RepoPath:        repoPath,
-		CurrentBranch:   headRef.Name().Short(),
+		CurrentBranch:   currentBranch,
 		BaseBranch:      baseBranch,
-		MergeBase:       shortHash(mergeBase.Hash),
-		Head:            shortHash(headRef.Hash()),
-		HasLocalChanges: headCommit.Hash == mergeBase.Hash && stats.FilesChanged > 0,
+		MergeBase:       shortHash(mergeBase),
+		Head:            shortHash(headCommit),
+		HasLocalChanges: headCommit == mergeBase && stats.FilesChanged > 0,
 		Stats:           stats,
 		Files:           fileDiffs,
 		Patch:           patchBuf.String(),
 	}, nil
 }
 
-func repoRoot(repo *gogit.Repository, dir string) (string, error) {
-	wt, err := repo.Worktree()
-	if err != nil {
-		return "", fmt.Errorf("reading worktree root: %w", err)
+func parseNameStatus(output string) []fileChange {
+	var changes []fileChange
+	if len(output) == 0 {
+		return changes
 	}
+	parts := strings.Split(output, "\x00")
+	for i := 0; i < len(parts)-1; i += 2 {
+		statusChar := parts[i]
+		filePath := parts[i+1]
 
-	root := wt.Filesystem.Root()
-	if root != "" {
-		abs, err := filepath.Abs(root)
-		if err != nil {
-			return "", fmt.Errorf("abs worktree root: %w", err)
+		status := "changed"
+		if len(statusChar) > 0 {
+			switch statusChar[0] {
+			case 'M':
+				status = "modified"
+			case 'A':
+				status = "added"
+			case 'D':
+				status = "deleted"
+			}
 		}
-		return abs, nil
+		changes = append(changes, fileChange{path: filePath, status: status})
 	}
-
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return "", fmt.Errorf("abs dir: %w", err)
-	}
-	return abs, nil
+	return changes
 }
 
-func joinRepoPath(repoPath, path string) string {
-	return filepath.Join(repoPath, filepath.FromSlash(path))
-}
-
-func resolveBranchCommit(repo *gogit.Repository, branch string) (*object.Commit, error) {
-	candidates := []plumbing.ReferenceName{
-		plumbing.NewBranchReferenceName(branch),
-		plumbing.NewRemoteReferenceName("origin", branch),
+func parseNumstat(output string) map[string]fileStats {
+	stats := make(map[string]fileStats)
+	if len(output) == 0 {
+		return stats
 	}
-
-	for _, name := range candidates {
-		ref, err := repo.Reference(name, false)
-		if err != nil {
+	parts := strings.SplitSeq(output, "\x00")
+	for part := range parts {
+		if part == "" {
 			continue
 		}
-		return repo.CommitObject(ref.Hash())
-	}
-
-	return nil, fmt.Errorf("branch %q not found", branch)
-}
-
-func collectPaths(baseTree, headTree *object.Tree, status gogit.Status) ([]string, error) {
-	seen := make(map[string]struct{})
-
-	add := func(path string) {
-		if path != "" {
-			seen[path] = struct{}{}
+		subparts := strings.SplitN(part, "\t", 3)
+		if len(subparts) != 3 {
+			continue
+		}
+		filePath := subparts[2]
+		if subparts[0] == "-" && subparts[1] == "-" {
+			stats[filePath] = fileStats{binary: true}
+		} else {
+			add, _ := strconv.Atoi(subparts[0])
+			del, _ := strconv.Atoi(subparts[1])
+			stats[filePath] = fileStats{additions: add, deletions: del}
 		}
 	}
+	return stats
+}
 
-	changes, err := object.DiffTree(baseTree, headTree)
+func parseUntracked(output string) []string {
+	var files []string
+	if len(output) == 0 {
+		return files
+	}
+	parts := strings.SplitSeq(output, "\x00")
+	for part := range parts {
+		if part != "" {
+			files = append(files, part)
+		}
+	}
+	return files
+}
+
+func parseCombinedDiff(combinedDiff string, trackedChanges []fileChange) map[string]string {
+	filePatches := make(map[string]string)
+	if combinedDiff == "" {
+		return filePatches
+	}
+	normalized := "\n" + combinedDiff
+	chunks := strings.SplitSeq(normalized, "\ndiff --git ")
+	for chunk := range chunks {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
+
+		before, _, ok := strings.Cut(chunk, "\n")
+		var firstLine string
+		if !ok {
+			firstLine = chunk
+		} else {
+			firstLine = before
+		}
+
+		for _, tc := range trackedChanges {
+			if matchPathToDiffHeader(firstLine, tc.path) {
+				filePatches[tc.path] = "diff --git " + chunk
+				break
+			}
+		}
+	}
+	return filePatches
+}
+
+func readUntrackedFile(repoPath, path string) (fileEntry, error) {
+	diskPath := filepath.Join(repoPath, path)
+
+	//nolint:gosec // path is inside repo worktree, checked by ls-files
+	contentBytes, err := os.ReadFile(diskPath)
 	if err != nil {
-		return nil, fmt.Errorf("diffing trees: %w", err)
-	}
-	for _, ch := range changes {
-		if ch == nil {
-			continue
-		}
-		if ch.To.Name != "" {
-			add(ch.To.Name)
-			continue
-		}
-		add(ch.From.Name)
+		return fileEntry{}, fmt.Errorf("reading untracked file %q: %w", path, err)
 	}
 
-	for path, st := range status {
-		if st.Staging != gogit.Unmodified || st.Worktree != gogit.Unmodified {
-			add(path)
+	isBinary := false
+	var additions int
+	var patch string
+
+	checkSize := min(len(contentBytes), 8000)
+	if bytes.IndexByte(contentBytes[:checkSize], 0) >= 0 {
+		isBinary = true
+	} else {
+		contentStr := string(contentBytes)
+		lines := strings.Split(contentStr, "\n")
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			lines = lines[:len(lines)-1]
+		}
+		additions = len(lines)
+
+		if additions > 0 {
+			var b strings.Builder
+			fmt.Fprintf(&b, "--- /dev/null\n+++ b/%s\n@@ -0,0 +1,%d @@\n", path, additions)
+			for _, line := range lines {
+				b.WriteString("+")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+			patch = b.String()
 		}
 	}
 
-	paths := make([]string, 0, len(seen))
-	for path := range seen {
-		paths = append(paths, path)
+	status := "added"
+	if isBinary {
+		status = "binary"
 	}
-	sort.Strings(paths)
-	return paths, nil
+
+	return fileEntry{
+		path:      path,
+		status:    status,
+		additions: additions,
+		deletions: 0,
+		patch:     patch,
+		binary:    isBinary,
+	}, nil
 }
 
-func isBinaryBytes(data []byte) bool {
-	if len(data) == 0 {
-		return false
+func matchPathToDiffHeader(firstLine, path string) bool {
+	prefixes := []string{" b/", " w/", " i/", " b/\"", " w/\"", " i/\""}
+	for _, p := range prefixes {
+		suffix := p + path
+		if strings.HasSuffix(firstLine, suffix) ||
+			(strings.HasSuffix(firstLine, "\"") && strings.HasSuffix(firstLine, suffix+"\"")) {
+			return true
+		}
 	}
-	return bytes.IndexByte(data, 0) >= 0
+	return false
 }
 
-func fileStatusLabel(existed, existsNow, binary bool) string {
-	if binary {
-		return "binary"
+func shortHash(hash string) string {
+	hash = strings.TrimSpace(hash)
+	if len(hash) >= 7 {
+		return hash[:7]
 	}
-	switch {
-	case existed && existsNow:
-		return "modified"
-	case !existed && existsNow:
-		return "added"
-	case existed && !existsNow:
-		return "deleted"
-	default:
-		return "changed"
-	}
-}
-
-func shortHash(hash plumbing.Hash) string {
-	s := hash.String()
-	if len(s) >= 7 {
-		return s[:7]
-	}
-	return s
+	return hash
 }

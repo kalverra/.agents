@@ -3,32 +3,28 @@ package git
 import (
 	"fmt"
 	"strings"
-
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 )
 
 var defaultBranchCandidates = []string{"main", "master"}
 
 // DetectDefaultBranch resolves the repository default branch name.
-func DetectDefaultBranch(repo *gogit.Repository) (string, error) {
-	if name, err := defaultBranchFromOriginHEAD(repo); err == nil && name != "" {
+func DetectDefaultBranch(dir string) (string, error) {
+	if name, err := defaultBranchFromOriginHEAD(dir); err == nil && name != "" {
 		return name, nil
 	}
 
-	if name, err := defaultBranchFromUpstream(repo); err == nil && name != "" {
+	if name, err := defaultBranchFromUpstream(dir); err == nil && name != "" {
 		return name, nil
 	}
 
 	for _, candidate := range defaultBranchCandidates {
-		if hasBranchRef(repo, plumbing.NewBranchReferenceName(candidate)) {
+		if hasBranchRef(dir, "refs/heads/"+candidate) {
 			return candidate, nil
 		}
 	}
 
 	for _, candidate := range defaultBranchCandidates {
-		remoteRef := plumbing.NewRemoteReferenceName("origin", candidate)
-		if _, err := repo.Reference(remoteRef, false); err == nil {
+		if hasBranchRef(dir, "refs/remotes/origin/"+candidate) {
 			return candidate, nil
 		}
 	}
@@ -36,43 +32,39 @@ func DetectDefaultBranch(repo *gogit.Repository) (string, error) {
 	return "", fmt.Errorf("could not detect default branch; set one with --base")
 }
 
-func defaultBranchFromOriginHEAD(repo *gogit.Repository) (string, error) {
-	ref, err := repo.Reference(plumbing.NewRemoteHEADReferenceName("origin"), true)
+func defaultBranchFromOriginHEAD(dir string) (string, error) {
+	ref, err := gitOutput(dir, "symbolic-ref", "refs/remotes/origin/HEAD")
 	if err != nil {
 		return "", err
 	}
 
-	target := ref.Target()
-	if !target.IsRemote() {
+	// ref will look like "refs/remotes/origin/main"
+	parts := strings.Split(ref, "/")
+	if len(parts) < 4 || parts[0] != "refs" || parts[1] != "remotes" || parts[2] != "origin" {
 		return "", fmt.Errorf("origin HEAD does not point to a remote branch")
 	}
 
-	return strings.TrimPrefix(target.Short(), "origin/"), nil
+	return strings.Join(parts[3:], "/"), nil
 }
 
-func defaultBranchFromUpstream(repo *gogit.Repository) (string, error) {
-	head, err := repo.Head()
-	if err != nil {
-		return "", err
-	}
-	if !head.Name().IsBranch() {
-		return "", fmt.Errorf("HEAD is not a branch")
-	}
-
-	cfg, err := repo.Config()
+func defaultBranchFromUpstream(dir string) (string, error) {
+	// git rev-parse --abbrev-ref @{u} returns e.g. "origin/main"
+	upstream, err := gitOutput(dir, "rev-parse", "--abbrev-ref", "@{u}")
 	if err != nil {
 		return "", err
 	}
 
-	branchCfg, ok := cfg.Branches[head.Name().Short()]
-	if !ok || branchCfg.Merge == "" {
-		return "", fmt.Errorf("no upstream configured for %s", head.Name().Short())
+	parts := strings.Split(upstream, "/")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("no upstream configured")
 	}
 
-	return branchCfg.Merge.Short(), nil
+	// return the branch name without the remote prefix
+	return strings.Join(parts[1:], "/"), nil
 }
 
-func hasBranchRef(repo *gogit.Repository, name plumbing.ReferenceName) bool {
-	_, err := repo.Reference(name, false)
+func hasBranchRef(dir, refName string) bool {
+	// git show-ref --verify --quiet refName returns exit code 0 if exists
+	err := runGit(dir, "show-ref", "--verify", "--quiet", refName)
 	return err == nil
 }

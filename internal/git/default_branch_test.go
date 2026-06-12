@@ -3,7 +3,6 @@ package git
 import (
 	"testing"
 
-	gogit "github.com/go-git/go-git/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,39 +12,39 @@ func TestDetectDefaultBranch(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		setup   func(t *testing.T) *gogit.Repository
+		setup   func(t *testing.T) string
 		want    string
 		wantErr bool
 	}{
 		{
 			name: "origin HEAD points to main",
-			setup: func(t *testing.T) *gogit.Repository {
-				dir, repo := initTestRepo(t)
-				mainHash := addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				setOriginDefault(t, repo, "main", mainHash)
-				checkoutBranch(t, repo, "feature", true)
-				addAndCommit(t, repo, dir, "feature.txt", "feature\n", "feature work")
-				return repo
+			setup: func(t *testing.T) string {
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+				checkoutBranch(t, dir, "feature", true)
+				addAndCommit(t, dir, "feature.txt", "feature\n", "feature work")
+				return dir
 			},
 			want: "main",
 		},
 		{
 			name: "falls back to master",
-			setup: func(t *testing.T) *gogit.Repository {
-				dir, repo := initTestRepo(t)
-				addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				return repo
+			setup: func(t *testing.T) string {
+				dir := initTestRepo(t)
+				addAndCommit(t, dir, "README.md", "base\n", "init")
+				return dir
 			},
 			want: "master",
 		},
 		{
 			name: "falls back to local main",
-			setup: func(t *testing.T) *gogit.Repository {
-				dir, repo := initTestRepo(t)
-				addAndCommit(t, repo, dir, "README.md", "base\n", "init")
-				renameDefaultBranch(t, repo, "main")
-				return repo
+			setup: func(t *testing.T) string {
+				dir := initTestRepo(t)
+				addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				return dir
 			},
 			want: "main",
 		},
@@ -55,8 +54,8 @@ func TestDetectDefaultBranch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo := tt.setup(t)
-			got, err := DetectDefaultBranch(repo)
+			dir := tt.setup(t)
+			got, err := DetectDefaultBranch(dir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

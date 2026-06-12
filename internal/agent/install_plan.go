@@ -250,13 +250,15 @@ func (inst *Installer) skillDestPlan(label, destRoot string, skillDirs []string)
 		}
 		return skillDestPlan{}, err
 	}
-	for _, e := range entries {
-		name := e.Name()
-		if _, ok := repoSet[name]; !ok {
-			p.Removed = append(p.Removed, name)
+	if inst.PruneSkills {
+		for _, e := range entries {
+			name := e.Name()
+			if _, ok := repoSet[name]; !ok {
+				p.Removed = append(p.Removed, name)
+			}
 		}
+		sort.Strings(p.Removed)
 	}
-	sort.Strings(p.Removed)
 	return p, nil
 }
 

@@ -80,7 +80,7 @@ func TestSkillDestPlan_ListsRemovedVersusRepo(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(destRoot, "drop"), 0o750))
 
 	repoSkillPath := filepath.Join(t.TempDir(), "nested", "keep")
-	inst := &Installer{}
+	inst := &Installer{PruneSkills: true}
 	p, err := inst.skillDestPlan("test", destRoot, []string{repoSkillPath})
 	require.NoError(t, err)
 	require.Equal(t, "test", p.Label)
@@ -143,7 +143,7 @@ func TestCopySkills_RemovesExtraAndCopiesRepo(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(dest, "orphan"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(dest, "loose.txt"), []byte("y"), 0o600))
 
-	inst := &Installer{}
+	inst := &Installer{PruneSkills: true}
 	require.NoError(t, inst.copySkills([]string{skillA}, dest))
 
 	entries, err := os.ReadDir(dest)
@@ -166,10 +166,65 @@ func TestCopySkills_EmptyRepoClearsDestination(t *testing.T) {
 	dest := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dest, "gone"), 0o750))
 
-	inst := &Installer{}
+	inst := &Installer{PruneSkills: true}
 	require.NoError(t, inst.copySkills(nil, dest))
 
 	entries, err := os.ReadDir(dest)
 	require.NoError(t, err)
 	require.Empty(t, entries)
+}
+
+func TestCopySkills_DefaultKeepsExtra(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	skillA := filepath.Join(repoRoot, "alpha")
+	require.NoError(t, os.MkdirAll(skillA, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(skillA, "SKILL.md"), []byte("# a"), 0o600))
+
+	dest := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, "orphan"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dest, "loose.txt"), []byte("y"), 0o600))
+
+	inst := &Installer{}
+	require.NoError(t, inst.copySkills([]string{skillA}, dest))
+
+	entries, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	require.Equal(t, []string{"alpha", "loose.txt", "orphan"}, names)
+}
+
+func TestCopySkills_EmptyRepoKeepsDestination(t *testing.T) {
+	t.Parallel()
+
+	dest := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, "gone"), 0o750))
+
+	inst := &Installer{}
+	require.NoError(t, inst.copySkills(nil, dest))
+
+	entries, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, "gone", entries[0].Name())
+}
+
+func TestSkillDestPlan_NoRemovedWhenPruneOff(t *testing.T) {
+	t.Parallel()
+
+	destRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(destRoot, "keep"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(destRoot, "drop"), 0o750))
+
+	repoSkillPath := filepath.Join(t.TempDir(), "nested", "keep")
+	inst := &Installer{}
+	p, err := inst.skillDestPlan("test", destRoot, []string{repoSkillPath})
+	require.NoError(t, err)
+	require.Empty(t, p.Removed)
+	require.Equal(t, []string{"keep"}, p.Installed)
 }

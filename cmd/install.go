@@ -20,17 +20,19 @@ var installCmd = &cobra.Command{
 		targetsStr, _ := cmd.Flags().GetString("targets")
 		noHooks, _ := cmd.Flags().GetBool("no-hooks")
 		noSkills, _ := cmd.Flags().GetBool("no-skills")
+		pruneSkills, _ := cmd.Flags().GetBool("prune-skills")
 		yes, _ := cmd.Flags().GetBool("yes")
 
 		inst := &agent.Installer{
-			RepoRoot:   repoRoot(),
-			DryRun:     dryRun,
-			Yes:        yes,
-			UseCopy:    useCopy,
-			Verbose:    verbose,
-			WithHooks:  !noHooks,
-			WithSkills: !noSkills,
-			Targets:    agent.ParseTargets(targetsStr),
+			RepoRoot:    repoRoot(),
+			DryRun:      dryRun,
+			Yes:         yes,
+			UseCopy:     useCopy,
+			Verbose:     verbose,
+			WithHooks:   !noHooks,
+			WithSkills:  !noSkills,
+			PruneSkills: pruneSkills,
+			Targets:     agent.ParseTargets(targetsStr),
 		}
 
 		report, err := inst.Install()
@@ -51,6 +53,8 @@ func init() {
 		String("targets", "", "Comma-separated: claude,antigravity,cursor,codex (default: detected only)")
 	installCmd.Flags().Bool("no-hooks", false, "Skip hook deploy and settings merge")
 	installCmd.Flags().Bool("no-skills", false, "Skip skill directory copies")
+	installCmd.Flags().
+		Bool("prune-skills", false, "Remove installed skill dirs not in repo skills/ (default: keep extras)")
 	installCmd.Flags().BoolP("yes", "y", false, "Skip install confirmation prompt")
 	rootCmd.AddCommand(installCmd)
 }

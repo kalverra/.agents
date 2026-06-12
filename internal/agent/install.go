@@ -16,14 +16,15 @@ import (
 
 // Installer deploys global agents markdown, hooks, and skills.
 type Installer struct {
-	RepoRoot   string
-	DryRun     bool
-	Yes        bool
-	UseCopy    bool
-	Verbose    bool
-	WithHooks  bool
-	WithSkills bool
-	Targets    []Agent // nil means all detected
+	RepoRoot    string
+	DryRun      bool
+	Yes         bool
+	UseCopy     bool
+	Verbose     bool
+	WithHooks   bool
+	WithSkills  bool
+	PruneSkills bool
+	Targets     []Agent // nil means all detected
 }
 
 // InstallReport summarizes what was deployed.
@@ -550,20 +551,24 @@ func (inst *Installer) copySkills(skillDirs []string, destRoot string) error {
 		return err
 	}
 
-	entries, err := os.ReadDir(destRoot)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		if _, keep := repoNames[e.Name()]; !keep {
-			if err := os.RemoveAll(filepath.Join(destRoot, e.Name())); err != nil {
-				return fmt.Errorf("removing extra skill %q: %w", e.Name(), err)
+	if inst.PruneSkills {
+		entries, err := os.ReadDir(destRoot)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if _, keep := repoNames[e.Name()]; !keep {
+				if err := os.RemoveAll(filepath.Join(destRoot, e.Name())); err != nil {
+					return fmt.Errorf("removing extra skill %q: %w", e.Name(), err)
+				}
 			}
 		}
 	}
 
 	if len(skillDirs) == 0 {
-		output.Successf("Removed all skills under %s\n", destRoot)
+		if inst.PruneSkills {
+			output.Successf("Removed all skills under %s\n", destRoot)
+		}
 		return nil
 	}
 

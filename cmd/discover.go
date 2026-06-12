@@ -102,7 +102,7 @@ var discoverCmd = &cobra.Command{
 			}
 
 			if anyFound {
-				output.Println("Run: agents install [--copy] [--dry-run] [--no-hooks] [--no-skills]")
+				output.Println("Run: agents install [--copy] [--dry-run] [--no-hooks] [--no-skills] [--prune-skills]")
 			} else {
 				output.Println(
 					"No known agent paths detected. Install tools first, or use install --targets to force paths.",

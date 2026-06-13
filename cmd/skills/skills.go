@@ -13,4 +13,5 @@ var Cmd = &cobra.Command{
 func init() {
 	Cmd.AddCommand(branchDiffCmd)
 	Cmd.AddCommand(fetchPRCmd)
+	Cmd.AddCommand(prReviewCmd)
 }

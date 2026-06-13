@@ -51,6 +51,16 @@ func FormatHuman(result *BranchDiffResult) string {
 	return b.String()
 }
 
+// FormatDiffBody renders the file diff content without the PR diff range header line.
+func FormatDiffBody(result *BranchDiffResult) string {
+	full := FormatHuman(result)
+	_, rest, ok := strings.Cut(full, "\n")
+	if !ok {
+		return ""
+	}
+	return strings.TrimPrefix(rest, "\n")
+}
+
 func formatGroupStats(count int, s fileStat) string {
 	noun := "file"
 	if count != 1 {

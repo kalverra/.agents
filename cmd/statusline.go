@@ -270,7 +270,7 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm%ds", mins, rem)
 	}
 	hours := mins / 60
-	mins = mins % 60
+	mins %= 60
 	if mins == 0 {
 		return fmt.Sprintf("%dh", hours)
 	}

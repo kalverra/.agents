@@ -1,3 +1,4 @@
+// Package statuslinetrack provides tracking capabilities for the status line.
 package statuslinetrack
 
 import (

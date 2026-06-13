@@ -84,3 +84,29 @@ func runGit(dir string, args ...string) error {
 	cmd.Dir = dir
 	return cmd.Run()
 }
+
+// ReadFileSnippet reads a file from the worktree or HEAD and returns a formatted snippet around targetLine.
+func ReadFileSnippet(dir, path string, targetLine, contextLines int) string {
+	out, err := gitOutput(dir, "show", "HEAD:"+path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(out, "\n")
+	start := targetLine - 1 - contextLines
+	end := targetLine - 1 + contextLines
+	if start < 0 {
+		start = 0
+	}
+	if end >= len(lines) {
+		end = len(lines) - 1
+	}
+	if start > end {
+		return ""
+	}
+
+	var b strings.Builder
+	for i := start; i <= end; i++ {
+		fmt.Fprintf(&b, "%d: %s\n", i+1, lines[i])
+	}
+	return strings.TrimRight(b.String(), "\n")
+}

@@ -93,7 +93,14 @@ func BranchDiff(dir string, opts BranchDiffOptions) (*BranchDiffResult, error) {
 		return nil, fmt.Errorf("reading HEAD commit: %w", err)
 	}
 
-	mergeBase, err := gitOutput(dir, "merge-base", baseBranch, "HEAD")
+	diffBase := baseBranch
+	if hasBranchRef(dir, "refs/remotes/origin/"+baseBranch) {
+		diffBase = "refs/remotes/origin/" + baseBranch
+	} else if upstream, err := gitOutput(dir, "rev-parse", "--abbrev-ref", baseBranch+"@{u}"); err == nil && upstream != "" {
+		diffBase = upstream
+	}
+
+	mergeBase, err := gitOutput(dir, "merge-base", diffBase, "HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("finding merge base: %w", err)
 	}

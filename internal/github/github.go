@@ -36,18 +36,22 @@ type Review struct {
 
 // ReviewThread groups inline review comments on a specific file location.
 type ReviewThread struct {
+	ID         string
 	IsResolved bool
 	IsOutdated bool
 	Path       string
+	StartLine  int
 	Line       int
 	Comments   []Comment
 }
 
 // Comment is a single comment left on a PR or review thread.
 type Comment struct {
-	Author    string
-	Body      string
-	CreatedAt time.Time
+	Author      string
+	Body        string
+	Suggestions []Suggestion
+	DiffHunk    string
+	CreatedAt   time.Time
 }
 
 // FetchPR queries GitHub for the most recent open PR on the given branch.
@@ -82,9 +86,11 @@ func FetchPR(ctx context.Context, client *githubv4.Client, owner, repo, branch s
 
 					ReviewThreads struct {
 						Nodes []struct {
+							ID         string
 							IsResolved bool
 							IsOutdated bool
 							Path       string
+							StartLine  int
 							Line       int
 							Comments   struct {
 								Nodes []struct {
@@ -92,6 +98,7 @@ func FetchPR(ctx context.Context, client *githubv4.Client, owner, repo, branch s
 										Login string
 									}
 									Body      string
+									DiffHunk  string
 									CreatedAt time.Time
 								}
 							} `graphql:"comments(first: 50)"`
@@ -152,16 +159,21 @@ func FetchPR(ctx context.Context, client *githubv4.Client, owner, repo, branch s
 
 	for _, t := range n.ReviewThreads.Nodes {
 		thread := ReviewThread{
+			ID:         t.ID,
 			IsResolved: t.IsResolved,
 			IsOutdated: t.IsOutdated,
 			Path:       t.Path,
+			StartLine:  t.StartLine,
 			Line:       t.Line,
 		}
 		for _, c := range t.Comments.Nodes {
+			body, suggestions := ExtractSuggestions(c.Body)
 			thread.Comments = append(thread.Comments, Comment{
-				Author:    c.Author.Login,
-				Body:      c.Body,
-				CreatedAt: c.CreatedAt,
+				Author:      c.Author.Login,
+				Body:        body,
+				Suggestions: suggestions,
+				DiffHunk:    c.DiffHunk,
+				CreatedAt:   c.CreatedAt,
 			})
 		}
 		pr.Threads = append(pr.Threads, thread)

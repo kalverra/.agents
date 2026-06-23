@@ -142,7 +142,11 @@ func WriteResolvedThreads(b *strings.Builder, threads []ReviewThread, full bool)
 func formatThread(b *strings.Builder, t ReviewThread) {
 	loc := t.Path
 	if t.Line > 0 {
-		loc = fmt.Sprintf("%s:%d", t.Path, t.Line)
+		if t.StartLine > 0 && t.StartLine != t.Line {
+			loc = fmt.Sprintf("%s:%d-%d", t.Path, t.StartLine, t.Line)
+		} else {
+			loc = fmt.Sprintf("%s:%d", t.Path, t.Line)
+		}
 	}
 	label := "Thread"
 	if t.IsOutdated {
@@ -153,7 +157,46 @@ func formatThread(b *strings.Builder, t ReviewThread) {
 		date := c.CreatedAt.Format("2006-01-02")
 		fmt.Fprintf(b, "**@%s** (%s):\n", c.Author, date)
 		writeQuoted(b, StripBloat(c.Body))
+		writeCommentSuggestions(b, c)
 		b.WriteString("\n")
+	}
+	if hunk := threadDiffHunkHuman(t); hunk != "" {
+		b.WriteString("\n**Diff context:**\n")
+		fmt.Fprintf(b, "```diff\n%s\n```\n", strings.TrimRight(hunk, "\n"))
+	}
+}
+
+func threadDiffHunkHuman(t ReviewThread) string {
+	for _, c := range t.Comments {
+		if c.DiffHunk != "" {
+			return c.DiffHunk
+		}
+	}
+	return ""
+}
+
+func writeCommentSuggestions(b *strings.Builder, c Comment) {
+	for i, s := range c.Suggestions {
+		label := "Suggested change"
+		if len(c.Suggestions) > 1 {
+			label = fmt.Sprintf("Suggested change %d", i+1)
+		}
+		if s.Source == SuggestionSourceAutomated {
+			label += " (Copilot)"
+		}
+		fmt.Fprintf(b, "\n**%s:**\n", label)
+		if s.Path != "" {
+			fmt.Fprintf(b, "Path: `%s`", s.Path)
+			if s.StartLine > 0 {
+				if s.EndLine > 0 && s.EndLine != s.StartLine {
+					fmt.Fprintf(b, ":%d-%d", s.StartLine, s.EndLine)
+				} else {
+					fmt.Fprintf(b, ":%d", s.StartLine)
+				}
+			}
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(b, "```\n%s\n```\n", s.Code)
 	}
 }
 

@@ -1,85 +1,261 @@
-// Package review bundles PR metadata, review threads, and branch diffs for agent consumption.
+// Package review formats PR review threads and branch diffs for LLM consumption.
 package review
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/kalverra/agents/internal/git"
 	"github.com/kalverra/agents/internal/github"
 )
 
-// FormatBundle renders PR review threads and branch diff as a single markdown document.
+var hunkHeaderRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@`)
+
+// FormatBundle renders PR review threads and branch diff as an XML document.
 // pr may be nil when no open PR exists for the current branch.
 func FormatBundle(pr *github.PR, diff *git.BranchDiffResult, includeResolved bool) string {
 	var b strings.Builder
 
 	if pr != nil {
-		github.WritePRHeader(&b, pr)
-		github.WritePRReviewSections(&b, pr, includeResolved)
+		fmt.Fprintf(
+			&b,
+			"<pr id=\"%d\" author=\"%s\" status=\"%s\" url=\"%s\">\n",
+			pr.Number,
+			pr.Author,
+			pr.ReviewDecision,
+			pr.URL,
+		)
+		fmt.Fprintf(&b, "<branch>%s -> %s</branch>\n", pr.HeadRef, pr.BaseRef)
+		b.WriteString("<description>\n")
+		if pr.Body != "" {
+			b.WriteString(github.StripBloat(pr.Body))
+			b.WriteString("\n")
+		} else {
+			b.WriteString("*(no description)*\n")
+		}
+		b.WriteString("</description>\n")
 	} else {
-		fmt.Fprintf(&b, "# Code Review: %s → %s\n\n", diff.CurrentBranch, diff.BaseBranch)
+		fmt.Fprintf(&b, "<pr branch=\"%s -> %s\">\n", diff.CurrentBranch, diff.BaseBranch)
 	}
 
-	fmt.Fprintf(&b, "\n## Code Diff (%s...%s)\n\n", diff.BaseBranch, diff.CurrentBranch)
+	var codeAdd, codeDel, codeCount int
+	var toolAdd, toolDel, toolCount int
+	for _, f := range diff.Files {
+		if git.IsCodeFile(f.Path) {
+			codeCount++
+			codeAdd += f.Additions
+			codeDel += f.Deletions
+		} else {
+			toolCount++
+			toolAdd += f.Additions
+			toolDel += f.Deletions
+		}
+	}
 
-	rawDiff := git.FormatDiffBody(diff)
+	b.WriteString("<stats ")
+	if codeCount > 0 {
+		fmt.Fprintf(&b, "code=\"+%d -%d (%d files)\" ", codeAdd, codeDel, codeCount)
+	}
+	if toolCount > 0 {
+		fmt.Fprintf(&b, "tooling=\"+%d -%d (%d files)\" ", toolAdd, toolDel, toolCount)
+	}
+	b.WriteString("/>\n\n<diff>\n")
+
+	threadMap := make(map[string]map[int][]*github.ReviewThread)
 	var notInterleaved []github.ReviewThread
 
-	if pr != nil && len(pr.Threads) > 0 {
-		var active []github.ReviewThread
-		for _, t := range pr.Threads {
+	if pr != nil {
+		for i := range pr.Threads {
+			t := &pr.Threads[i]
 			if t.IsResolved && !includeResolved {
 				continue
 			}
-			active = append(active, t)
+			if t.Line == 0 {
+				notInterleaved = append(notInterleaved, *t)
+				continue
+			}
+			if threadMap[t.Path] == nil {
+				threadMap[t.Path] = make(map[int][]*github.ReviewThread)
+			}
+			threadMap[t.Path][t.Line] = append(threadMap[t.Path][t.Line], t)
 		}
-		rawDiff, notInterleaved = injectComments(rawDiff, active)
 	}
 
-	b.WriteString(rawDiff)
+	for _, f := range diff.Files {
+		fmt.Fprintf(
+			&b,
+			"<file path=%q status=%q additions=\"%d\" deletions=\"%d\">\n",
+			f.Path,
+			f.Status,
+			f.Additions,
+			f.Deletions,
+		)
+
+		if f.Patch != "" {
+			switch {
+			case git.IsDependencyOrLockfile(f.Path):
+				b.WriteString("<skipped reason=\"dependency/lockfile/generated\" />\n")
+			case !git.IsCodeFile(f.Path) && f.Status == "added" && f.Additions > 40:
+				fmt.Fprintf(&b, "<skipped reason=\"%d-line config file\" />\n", f.Additions)
+			default:
+				formatXMLPatch(&b, f.Patch, threadMap[f.Path])
+			}
+		}
+
+		b.WriteString("</file>\n\n")
+	}
+
+	b.WriteString("</diff>\n")
+
+	// Collect any threads in the map that were not interleaved
+	for _, threadsByLine := range threadMap {
+		for _, threads := range threadsByLine {
+			for _, t := range threads {
+				notInterleaved = append(notInterleaved, *t)
+			}
+		}
+	}
 
 	if len(notInterleaved) > 0 {
-		fmt.Fprintf(&b, "\n\n## Unresolved Threads (Not in Diff)\n\n")
-		for _, t := range notInterleaved {
-			loc := t.Path
-			if t.Line > 0 {
-				loc = fmt.Sprintf("%s:%d", t.Path, t.Line)
-			}
-			label := "Thread"
-			if t.IsOutdated {
-				label = "Thread (outdated)"
-			}
-			fmt.Fprintf(&b, "### %s: %s\n\n", label, loc)
+		b.WriteString("\n<unresolved_threads>\n")
+		for i := range notInterleaved {
+			writeXMLThread(&b, &notInterleaved[i], true)
+		}
+		b.WriteString("</unresolved_threads>\n")
+	}
 
-			// Add code snippet
-			if t.Line > 0 && diff.RepoPath != "" {
-				snippet := git.ReadFileSnippet(diff.RepoPath, t.Path, t.Line, 2)
-				if snippet != "" {
-					fmt.Fprintf(&b, "```go\n%s\n```\n\n", snippet)
-				}
-			}
+	b.WriteString("</pr>\n")
+	return b.String()
+}
 
-			for _, c := range t.Comments {
-				date := c.CreatedAt.Format("2006-01-02")
-				fmt.Fprintf(&b, "**@%s** (%s):\n", c.Author, date)
-				for line := range strings.SplitSeq(github.StripBloat(c.Body), "\n") {
-					fmt.Fprintf(&b, "> %s\n", line)
-				}
-				b.WriteString("\n")
+func formatXMLPatch(b *strings.Builder, patch string, threads map[int][]*github.ReviewThread) {
+	currentLine := 0
+	inHunk := false
+
+	for line := range strings.SplitSeq(patch, "\n") {
+		if git.SkipPatchLine(line) {
+			continue
+		}
+
+		if m := hunkHeaderRegex.FindStringSubmatch(line); m != nil {
+			if inHunk {
+				b.WriteString("</hunk>\n")
 			}
+			currentLine, _ = strconv.Atoi(m[1])
+			inHunk = true
+			fmt.Fprintf(b, "<hunk line=\"%d\">\n", currentLine)
+			continue
+		}
+
+		if !inHunk {
+			continue
+		}
+
+		b.WriteString(line)
+		b.WriteByte('\n')
+
+		if len(line) > 0 {
+			char := line[0]
+			switch char {
+			case ' ', '+':
+				if ts, ok := threads[currentLine]; ok {
+					for _, t := range ts {
+						writeXMLThread(b, t, false)
+					}
+					delete(threads, currentLine)
+				}
+				currentLine++
+			case '-':
+				// no advance
+			}
+		} else {
+			if ts, ok := threads[currentLine]; ok {
+				for _, t := range ts {
+					writeXMLThread(b, t, false)
+				}
+				delete(threads, currentLine)
+			}
+			currentLine++
+		}
+	}
+	if inHunk {
+		b.WriteString("</hunk>\n")
+	}
+}
+
+func writeXMLThread(b *strings.Builder, t *github.ReviewThread, includeDiffHunk bool) {
+	if len(t.Comments) == 0 {
+		return
+	}
+
+	attrs := fmt.Sprintf(`line="%d"`, t.Line)
+	if t.StartLine > 0 && t.StartLine != t.Line {
+		attrs += fmt.Sprintf(` start_line="%d"`, t.StartLine)
+	}
+
+	if len(t.Comments) == 1 {
+		c := t.Comments[0]
+		if len(c.Suggestions) == 0 && (!includeDiffHunk || c.DiffHunk == "") {
+			fmt.Fprintf(
+				b,
+				"<thread %s author=\"%s\">%s</thread>\n",
+				attrs,
+				c.Author,
+				github.StripBloat(c.Body),
+			)
+			return
 		}
 	}
 
-	return b.String()
+	fmt.Fprintf(b, "<thread %s>\n", attrs)
+	for _, c := range t.Comments {
+		fmt.Fprintf(b, "<comment author=\"%s\">%s</comment>\n", c.Author, github.StripBloat(c.Body))
+		writeXMLCommentSuggestions(b, c)
+	}
+	if includeDiffHunk {
+		if hunk := threadDiffHunk(t); hunk != "" {
+			fmt.Fprintf(b, "<diff_hunk>\n%s\n</diff_hunk>\n", strings.TrimRight(hunk, "\n"))
+		}
+	}
+	b.WriteString("</thread>\n")
+}
+
+func threadDiffHunk(t *github.ReviewThread) string {
+	for _, c := range t.Comments {
+		if c.DiffHunk != "" {
+			return c.DiffHunk
+		}
+	}
+	return ""
+}
+
+func writeXMLCommentSuggestions(b *strings.Builder, c github.Comment) {
+	for _, s := range c.Suggestions {
+		attrs := ""
+		if s.Source != "" {
+			attrs = fmt.Sprintf(` source=%q`, s.Source)
+		}
+		if s.Path != "" {
+			attrs += fmt.Sprintf(` path=%q`, s.Path)
+		}
+		if s.StartLine > 0 {
+			attrs += fmt.Sprintf(` start_line="%d"`, s.StartLine)
+		}
+		if s.EndLine > 0 {
+			attrs += fmt.Sprintf(` end_line="%d"`, s.EndLine)
+		}
+		fmt.Fprintf(b, "<suggestion%s>\n%s\n</suggestion>\n", attrs, s.Code)
+	}
 }
 
 // Filename returns the output filename for a review bundle.
 func Filename(pr *github.PR, diff *git.BranchDiffResult) string {
 	if pr != nil {
-		return fmt.Sprintf("pr-%d_review.md", pr.Number)
+		return fmt.Sprintf("pr-%d_review.xml", pr.Number)
 	}
 	safeCurrent := strings.ReplaceAll(diff.CurrentBranch, "/", "-")
 	safeBase := strings.ReplaceAll(diff.BaseBranch, "/", "-")
-	return fmt.Sprintf("%s_%s_review.md", safeCurrent, safeBase)
+	return fmt.Sprintf("%s_%s_review.xml", safeCurrent, safeBase)
 }

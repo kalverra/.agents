@@ -1,3 +1,4 @@
+// Package skills contains skill-focused commands and flows
 package skills
 
 import (
@@ -92,6 +93,11 @@ var prReviewCmd = &cobra.Command{
 		pr, err := gh.FetchPR(ctx, client, owner, repo, branch)
 		if err != nil {
 			return fmt.Errorf("fetching PR: %w", err)
+		}
+		if pr != nil {
+			if enrichErr := gh.EnrichAutomatedSuggestions(ctx, token, owner, repo, pr); enrichErr != nil {
+				return fmt.Errorf("fetching Copilot suggestions: %w", enrichErr)
+			}
 		}
 
 		diffBase := base

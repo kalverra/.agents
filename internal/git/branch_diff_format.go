@@ -27,7 +27,7 @@ func FormatHuman(result *BranchDiffResult) string {
 
 	var codeFiles, toolingFiles []FileDiff
 	for _, f := range result.Files {
-		if isCodeFile(f.Path) {
+		if IsCodeFile(f.Path) {
 			codeFiles = append(codeFiles, f)
 		} else {
 			toolingFiles = append(toolingFiles, f)
@@ -70,36 +70,26 @@ func formatGroupStats(count int, s fileStat) string {
 }
 
 func writeFileDiff(b *strings.Builder, f FileDiff) {
-	var statParts []string
-	if f.Additions > 0 {
-		statParts = append(statParts, fmt.Sprintf("+%d", f.Additions))
-	}
-	if f.Deletions > 0 {
-		statParts = append(statParts, fmt.Sprintf("-%d", f.Deletions))
-	}
-	header := fmt.Sprintf("[%s] %s", strings.ToUpper(f.Status), f.Path)
-	if len(statParts) > 0 {
-		header += " " + strings.Join(statParts, " ")
-	}
-	fmt.Fprintln(b, header)
+	fmt.Fprintf(
+		b,
+		"<file path=%q status=%q additions=\"%d\" deletions=\"%d\">\n",
+		f.Path,
+		f.Status,
+		f.Additions,
+		f.Deletions,
+	)
 
-	if f.Patch == "" {
-		return
-	}
-
-	if isDependencyOrLockfile(f.Path) {
-		fmt.Fprintln(b, "[patch omitted — dependency/lockfile/generated]")
-		return
+	if f.Patch != "" {
+		if IsDependencyOrLockfile(f.Path) {
+			fmt.Fprintln(b, "[patch omitted — dependency/lockfile/generated]")
+		} else if !IsCodeFile(f.Path) && f.Status == "added" && f.Additions > truncateThreshold {
+			fmt.Fprintf(b, "[truncated — %d-line config file]\n", f.Additions)
+		} else if cleaned := cleanFilePatch(f.Patch); cleaned != "" {
+			fmt.Fprintln(b, cleaned)
+		}
 	}
 
-	if !isCodeFile(f.Path) && f.Status == "added" && f.Additions > truncateThreshold {
-		fmt.Fprintf(b, "[truncated — %d-line config file]\n", f.Additions)
-		return
-	}
-
-	if cleaned := cleanFilePatch(f.Patch); cleaned != "" {
-		fmt.Fprintln(b, cleaned)
-	}
+	fmt.Fprintln(b, "</file>")
 }
 
 type fileStat struct{ add, del int }
@@ -120,11 +110,13 @@ var codeExtensions = map[string]bool{
 	".cs": true, ".swift": true, ".kt": true, ".sh": true,
 }
 
-func isCodeFile(path string) bool {
+// IsCodeFile reports whether path has a recognized source-code extension.
+func IsCodeFile(path string) bool {
 	return codeExtensions[strings.ToLower(filepath.Ext(path))]
 }
 
-func isDependencyOrLockfile(path string) bool {
+// IsDependencyOrLockfile reports whether path is a lockfile or under vendor/node_modules.
+func IsDependencyOrLockfile(path string) bool {
 	base := filepath.Base(path)
 	switch base {
 	case "go.sum",
@@ -151,7 +143,7 @@ func isDependencyOrLockfile(path string) bool {
 func cleanFilePatch(patch string) string {
 	var b strings.Builder
 	for line := range strings.SplitSeq(patch, "\n") {
-		if skipPatchLine(line) {
+		if SkipPatchLine(line) {
 			continue
 		}
 		if strings.HasPrefix(line, "@@") {
@@ -173,7 +165,8 @@ func trimHunkHeader(line string) string {
 	return line[:2+closeIdx+2]
 }
 
-func skipPatchLine(line string) bool {
+// SkipPatchLine reports whether a unified-diff line is git metadata rather than hunk content.
+func SkipPatchLine(line string) bool {
 	return strings.HasPrefix(line, "diff --git ") ||
 		strings.HasPrefix(line, "index ") ||
 		strings.HasPrefix(line, "new file mode ") ||

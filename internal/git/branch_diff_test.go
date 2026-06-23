@@ -22,6 +22,7 @@ func TestBranchDiff(t *testing.T) {
 		setup             func(t *testing.T) (dir string, opts BranchDiffOptions)
 		wantBase          string
 		wantInPatch       []string
+		wantNotInPatch    []string
 		wantFile          *wantFile
 		wantEmpty         bool
 		checkLocalChanges bool
@@ -117,8 +118,8 @@ func TestBranchDiff(t *testing.T) {
 			name: "deleted file on branch",
 			setup: func(t *testing.T) (string, BranchDiffOptions) {
 				dir := initTestRepo(t)
-				mainHash := addAndCommit(t, dir, "keep.txt", "stay\n", "init")
-				addAndCommit(t, dir, "remove.txt", "gone\n", "add remove")
+				addAndCommit(t, dir, "keep.txt", "stay\n", "init")
+				mainHash := addAndCommit(t, dir, "remove.txt", "gone\n", "add remove")
 				renameDefaultBranch(t, dir, "main")
 				setOriginDefault(t, dir, "main", mainHash)
 				checkoutBranch(t, dir, "feature", true)
@@ -147,6 +148,34 @@ func TestBranchDiff(t *testing.T) {
 			checkLocalChanges: true,
 			wantLocalChanges:  true,
 			wantInPatch:       []string{"+local edit"},
+		},
+		{
+			name: "use upstream branch for base",
+			setup: func(t *testing.T) (string, BranchDiffOptions) {
+				dir := initTestRepo(t)
+				mainHash := addAndCommit(t, dir, "README.md", "base\n", "init")
+				renameDefaultBranch(t, dir, "main")
+				setOriginDefault(t, dir, "main", mainHash)
+
+				// simulate upstream moving forward
+				runGitCmd(t, dir, "checkout", "-b", "upstream_tmp")
+				advancedHash := addAndCommit(t, dir, "upstream.txt", "upstream work\n", "upstream commit")
+
+				// set origin/main to the advanced commit
+				runGitCmd(t, dir, "update-ref", "refs/remotes/origin/main", advancedHash)
+
+				// go back to local main, which is behind
+				runGitCmd(t, dir, "checkout", "main")
+
+				// create feature branch off the advanced commit (e.g. if user branched from origin/main)
+				runGitCmd(t, dir, "checkout", "-b", "feature", advancedHash)
+				addAndCommit(t, dir, "feature.txt", "feature work\n", "feature commit")
+
+				return dir, BranchDiffOptions{Base: "main"}
+			},
+			wantBase:       "main",
+			wantInPatch:    []string{"feature.txt", "+feature work"},
+			wantNotInPatch: []string{"upstream.txt", "+upstream work"},
 		},
 	}
 
@@ -184,6 +213,17 @@ func TestBranchDiff(t *testing.T) {
 
 			for _, want := range tt.wantInPatch {
 				assert.Contains(t, result.Patch, want, "patch missing %q:\n%s", want, result.Patch)
+			}
+
+			for _, dontWant := range tt.wantNotInPatch {
+				assert.NotContains(
+					t,
+					result.Patch,
+					dontWant,
+					"patch unexpectedly contains %q:\n%s",
+					dontWant,
+					result.Patch,
+				)
 			}
 		})
 	}

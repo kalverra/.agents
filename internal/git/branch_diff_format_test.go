@@ -11,10 +11,10 @@ func TestCleanFilePatch(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		input   string
-		wantIn  []string
-		wantOut []string
+		name         string
+		input        string
+		wantContains []string
+		wantOut      []string
 	}{
 		{
 			name: "strips diff --git and index lines",
@@ -27,8 +27,8 @@ func TestCleanFilePatch(t *testing.T) {
 				"-line2\n" +
 				"+line2 modified\n" +
 				" line3\n",
-			wantIn:  []string{"@@ -1,3 +1,4 @@", " line1", "-line2", "+line2 modified"},
-			wantOut: []string{"diff --git", "index abc123", "--- a/", "+++ b/"},
+			wantContains: []string{"@@ -1,3 +1,4 @@", " line1", "-line2", "+line2 modified"},
+			wantOut:      []string{"diff --git", "index abc123", "--- a/", "+++ b/"},
 		},
 		{
 			name: "strips new file mode",
@@ -40,8 +40,8 @@ func TestCleanFilePatch(t *testing.T) {
 				"@@ -0,0 +1,2 @@\n" +
 				"+line one\n" +
 				"+line two\n",
-			wantIn:  []string{"@@ -0,0 +1,2 @@", "+line one", "+line two"},
-			wantOut: []string{"new file mode", "index 0000000", "--- /dev/null", "+++ b/"},
+			wantContains: []string{"@@ -0,0 +1,2 @@", "+line one", "+line two"},
+			wantOut:      []string{"new file mode", "index 0000000", "--- /dev/null", "+++ b/"},
 		},
 		{
 			name: "strips deleted file mode",
@@ -53,8 +53,8 @@ func TestCleanFilePatch(t *testing.T) {
 				"@@ -1,2 +0,0 @@\n" +
 				"-line one\n" +
 				"-line two\n",
-			wantIn:  []string{"@@ -1,2 +0,0 @@", "-line one", "-line two"},
-			wantOut: []string{"deleted file mode", "--- a/", "+++ /dev/null"},
+			wantContains: []string{"@@ -1,2 +0,0 @@", "-line one", "-line two"},
+			wantOut:      []string{"deleted file mode", "--- a/", "+++ /dev/null"},
 		},
 		{
 			name: "strips no-newline annotation",
@@ -66,8 +66,8 @@ func TestCleanFilePatch(t *testing.T) {
 				"-old\n" +
 				`\ No newline at end of file` + "\n" +
 				"+new\n",
-			wantIn:  []string{"@@ -1 +1 @@", "-old", "+new"},
-			wantOut: []string{`\ No newline at end of file`},
+			wantContains: []string{"@@ -1 +1 @@", "-old", "+new"},
+			wantOut:      []string{`\ No newline at end of file`},
 		},
 		{
 			name: "trims context glued to hunk header",
@@ -80,14 +80,14 @@ func TestCleanFilePatch(t *testing.T) {
 				" \t\t\tif anyFound {\n" +
 				"-\t\t\t\told\n" +
 				"+\t\t\t\tnew\n",
-			wantIn:  []string{"@@ -102,7 +102,7 @@", " \t\t\t}", "-\t\t\t\told", "+\t\t\t\tnew"},
-			wantOut: []string{"@@ -102,7 +102,7 @@ \t\t\t\t}"},
+			wantContains: []string{"@@ -102,7 +102,7 @@", " \t\t\t}", "-\t\t\t\told", "+\t\t\t\tnew"},
+			wantOut:      []string{"@@ -102,7 +102,7 @@ \t\t\t\t}"},
 		},
 		{
-			name:    "empty input returns empty",
-			input:   "",
-			wantIn:  nil,
-			wantOut: nil,
+			name:         "empty input returns empty",
+			input:        "",
+			wantContains: nil,
+			wantOut:      nil,
 		},
 	}
 
@@ -95,7 +95,7 @@ func TestCleanFilePatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := cleanFilePatch(tt.input)
-			for _, w := range tt.wantIn {
+			for _, w := range tt.wantContains {
 				assert.Contains(t, result, w)
 			}
 			for _, w := range tt.wantOut {
@@ -117,10 +117,10 @@ func TestFormatHuman(t *testing.T) {
 		"+new\n"
 
 	tests := []struct {
-		name    string
-		result  *BranchDiffResult
-		wantIn  []string
-		wantOut []string
+		name         string
+		result       *BranchDiffResult
+		wantContains []string
+		wantOut      []string
 	}{
 		{
 			name: "header contains branch names and merge-base",
@@ -130,7 +130,7 @@ func TestFormatHuman(t *testing.T) {
 				MergeBase:     "abc1234",
 				Files:         []FileDiff{},
 			},
-			wantIn: []string{"main", "feature", "abc1234"},
+			wantContains: []string{"main", "feature", "abc1234"},
 		},
 		{
 			name: "local changes label when on base branch",
@@ -143,7 +143,7 @@ func TestFormatHuman(t *testing.T) {
 					{Path: "main.go", Status: "modified", Additions: 1, Deletions: 0, Patch: "@@\n+x\n"},
 				},
 			},
-			wantIn: []string{"main (local changes)"},
+			wantContains: []string{"main (local changes)"},
 		},
 		{
 			name: "no-change result says no changes",
@@ -151,7 +151,7 @@ func TestFormatHuman(t *testing.T) {
 				BaseBranch: "main", CurrentBranch: "main", MergeBase: "abc1234",
 				Files: []FileDiff{},
 			},
-			wantIn: []string{"No changes"},
+			wantContains: []string{"No changes"},
 		},
 		{
 			name: "separates code and tooling stats",
@@ -168,7 +168,12 @@ func TestFormatHuman(t *testing.T) {
 					},
 				},
 			},
-			wantIn: []string{"Code:", "Tooling:", "[MODIFIED] main.go", "[ADDED] .serena/config.yml"},
+			wantContains: []string{
+				"Code:",
+				"Tooling:",
+				"<file path=\"main.go\" status=\"modified\"",
+				"<file path=\".serena/config.yml\" status=\"added\"",
+			},
 		},
 		{
 			name: "file header includes per-file stats",
@@ -178,7 +183,7 @@ func TestFormatHuman(t *testing.T) {
 					{Path: "main.go", Status: "modified", Additions: 10, Deletions: 2, Patch: modifiedGoPatch},
 				},
 			},
-			wantIn: []string{"[MODIFIED] main.go +10 -2"},
+			wantContains: []string{"<file path=\"main.go\" status=\"modified\" additions=\"10\" deletions=\"2\">"},
 		},
 		{
 			name: "truncates large added config file",
@@ -194,8 +199,8 @@ func TestFormatHuman(t *testing.T) {
 					},
 				},
 			},
-			wantIn:  []string{"truncated", "100"},
-			wantOut: []string{strings.Repeat("+line\n", 5)},
+			wantContains: []string{"truncated", "100"},
+			wantOut:      []string{strings.Repeat("+line\n", 5)},
 		},
 		{
 			name: "does not truncate small added config file",
@@ -211,8 +216,8 @@ func TestFormatHuman(t *testing.T) {
 					},
 				},
 			},
-			wantIn:  []string{"+line1"},
-			wantOut: []string{"truncated"},
+			wantContains: []string{"+line1"},
+			wantOut:      []string{"truncated"},
 		},
 		{
 			name: "does not truncate modified config file",
@@ -228,8 +233,8 @@ func TestFormatHuman(t *testing.T) {
 					},
 				},
 			},
-			wantIn:  []string{"+line"},
-			wantOut: []string{"truncated"},
+			wantContains: []string{"+line"},
+			wantOut:      []string{"truncated"},
 		},
 		{
 			name: "omits patch for dependency and lockfiles",
@@ -252,7 +257,11 @@ func TestFormatHuman(t *testing.T) {
 					},
 				},
 			},
-			wantIn:  []string{"[patch omitted — dependency/lockfile/generated]"},
+			wantContains: []string{
+				"<file path=\"go.sum\" status=\"modified\" additions=\"100\" deletions=\"10\">",
+				"[patch omitted — dependency/lockfile/generated]",
+				"</file>",
+			},
 			wantOut: []string{"-old", "+new", "+foo"},
 		},
 		{
@@ -264,7 +273,7 @@ func TestFormatHuman(t *testing.T) {
 					{Path: "main.go", Status: "modified", Additions: 1, Deletions: 1, Patch: modifiedGoPatch},
 				},
 			},
-			wantIn: []string{"main.go", ".serena/config.yml"},
+			wantContains: []string{"main.go", ".serena/config.yml"},
 		},
 		{
 			name: "git metadata stripped from code file patches",
@@ -274,8 +283,8 @@ func TestFormatHuman(t *testing.T) {
 					{Path: "main.go", Status: "modified", Additions: 1, Deletions: 1, Patch: modifiedGoPatch},
 				},
 			},
-			wantIn:  []string{"@@ -1 +1 @@", "-old", "+new"},
-			wantOut: []string{"diff --git", "index abc..def", "--- a/main.go", "+++ b/main.go"},
+			wantContains: []string{"@@ -1 +1 @@", "-old", "+new"},
+			wantOut:      []string{"diff --git", "index abc..def", "--- a/main.go", "+++ b/main.go"},
 		},
 	}
 
@@ -283,7 +292,7 @@ func TestFormatHuman(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := FormatHuman(tt.result)
-			for _, w := range tt.wantIn {
+			for _, w := range tt.wantContains {
 				assert.Contains(t, result, w, "expected %q in output:\n%s", w, result)
 			}
 			for _, w := range tt.wantOut {

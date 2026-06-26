@@ -25,90 +25,44 @@ Do not post replies or comments directly to PR.
 </rules>
 
 <format>
+
 ```md
 ## Intent
 
-Summary of code change intent (why) and execution (how).
+Summary of change intent and execution.
+
+## Suggested Reviewers
+
+_(Omit if `<suggested_reviewers>` is missing or empty)_
+
+- Name 1
+- Name 2
 
 ## Review
 
-### Correctness
-
-#### Good
-
-- List
-- Good
-- Things
-
-#### Improve
-
-- list
-- needed
-- improvements
-
-### Testability
-
-#### Good
-
-- List
-- Good
-- Things
-
-#### Improve
-
-- list
-- needed
-- improvements
-
-### Simplicity
-
-#### Good
-
-- List
-- Good
-- Things
-
-#### Improve
-
-- list
-- needed
-- improvements
-
-### Performance
-
-#### Good
-
-- List
-- Good
-- Things
-
-#### Improve
-
-- list
-- needed
-- improvements
+- [+] Good things
+- [-] Needed improvements
 
 ## Extra Review
 
-- List areas
-- that might benefit
-- from more stringent human review
+_(Omit if none)_
 
-## Comments (if any comment threads exist)
+- Areas needing stringent human review
 
-> username: filename:<lineNum>[-endLine]
+## Comments
+
+_(Omit if none)_
+
+> username: filename:line
 > comment body
 
-**Suggested change**:
+### Suggested change
 
+`​`​`replacement code`​`​`
+
+**Diff context**: code hunk targets.
+
+[classification] Plan to fix/reply. Use explicit `<suggestion>` blocks if you agree. (STOP CAVEMAN for reply)
 ```
-suggested replacement code
-```
 
-**Diff context** (if present): code hunk the comment targets.
-
-[classification] (STOP CAVEMAN for reply) Plan to fix or reply. Consider applying explicit `<suggestion>` blocks when present, assuming you agree.
-
-```
 </format>
-```

@@ -16,17 +16,18 @@ import (
 )
 
 type prReviewResult struct {
-	ReviewPath      string         `json:"review_path"`
-	PRNumber        int            `json:"pr_number,omitempty"`
-	PRURL           string         `json:"pr_url,omitempty"`
-	CurrentBranch   string         `json:"current_branch"`
-	BaseBranch      string         `json:"base_branch"`
-	MergeBase       string         `json:"merge_base"`
-	Head            string         `json:"head"`
-	HasLocalChanges bool           `json:"has_local_changes"`
-	UnresolvedCount int            `json:"unresolved_thread_count"`
-	Stats           git.DiffStats  `json:"stats"`
-	Files           []git.FileDiff `json:"files"`
+	ReviewPath         string         `json:"review_path"`
+	PRNumber           int            `json:"pr_number,omitempty"`
+	PRURL              string         `json:"pr_url,omitempty"`
+	CurrentBranch      string         `json:"current_branch"`
+	BaseBranch         string         `json:"base_branch"`
+	MergeBase          string         `json:"merge_base"`
+	Head               string         `json:"head"`
+	HasLocalChanges    bool           `json:"has_local_changes"`
+	UnresolvedCount    int            `json:"unresolved_thread_count"`
+	Stats              git.DiffStats  `json:"stats"`
+	Files              []git.FileDiff `json:"files"`
+	SuggestedReviewers []string       `json:"suggested_reviewers,omitempty"`
 }
 
 var prReviewCmd = &cobra.Command{
@@ -113,7 +114,10 @@ var prReviewCmd = &cobra.Command{
 			return fmt.Errorf("reading branch diff: %w", err)
 		}
 
-		content := review.FormatBundle(pr, diff, includeResolved)
+		currentAuthor := git.GetCurrentAuthor(dir)
+		suggestedReviewers, _ := git.SuggestReviewers(dir, diff, currentAuthor, 3)
+
+		content := review.FormatBundle(pr, diff, includeResolved, suggestedReviewers)
 		filename := review.Filename(pr, diff)
 		reviewPath := filepath.Join(dir, filename)
 
@@ -135,15 +139,16 @@ var prReviewCmd = &cobra.Command{
 		}
 
 		result := prReviewResult{
-			ReviewPath:      filename,
-			CurrentBranch:   diff.CurrentBranch,
-			BaseBranch:      diff.BaseBranch,
-			MergeBase:       diff.MergeBase,
-			Head:            diff.Head,
-			HasLocalChanges: diff.HasLocalChanges,
-			UnresolvedCount: unresolved,
-			Stats:           diff.Stats,
-			Files:           diff.Files,
+			ReviewPath:         filename,
+			CurrentBranch:      diff.CurrentBranch,
+			BaseBranch:         diff.BaseBranch,
+			MergeBase:          diff.MergeBase,
+			Head:               diff.Head,
+			HasLocalChanges:    diff.HasLocalChanges,
+			UnresolvedCount:    unresolved,
+			Stats:              diff.Stats,
+			Files:              diff.Files,
+			SuggestedReviewers: suggestedReviewers,
 		}
 		if pr != nil {
 			result.PRNumber = pr.Number
@@ -155,6 +160,12 @@ var prReviewCmd = &cobra.Command{
 				"Saved review bundle to %s\nRead this file to review the PR and code changes.\nDelete it when you are done.\n",
 				filename,
 			)
+			if len(suggestedReviewers) > 0 {
+				output.Printf("\nSuggested reviewers based on git history:\n")
+				for _, r := range suggestedReviewers {
+					output.Printf("- %s\n", r)
+				}
+			}
 		})
 		return nil
 	},

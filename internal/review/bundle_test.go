@@ -48,7 +48,7 @@ func TestFormatBundleWithPR(t *testing.T) {
 		},
 	}
 
-	out := FormatBundle(pr, diff, false)
+	out := FormatBundle(pr, diff, false, nil)
 
 	assert.Contains(t, out, `<pr id="42"`)
 	assert.Contains(t, out, `<unresolved_threads>`)
@@ -102,7 +102,7 @@ func TestFormatBundleWithSuggestionAndDiffHunk(t *testing.T) {
 		},
 	}
 
-	out := FormatBundle(pr, diff, false)
+	out := FormatBundle(pr, diff, false, nil)
 
 	assert.Contains(t, out, `start_line="1174"`)
 	assert.Contains(t, out, `<suggestion source="automated"`)
@@ -145,7 +145,7 @@ func TestFormatBundleInterleavedThreadOmitsDiffHunk(t *testing.T) {
 		},
 	}
 
-	out := FormatBundle(pr, diff, false)
+	out := FormatBundle(pr, diff, false, nil)
 
 	assert.Equal(t, 3, strings.Count(out, "<comment "))
 	assert.NotContains(t, out, "<diff_hunk>")
@@ -175,7 +175,7 @@ func TestFormatBundleNonInterleavedThreadDiffHunkOnce(t *testing.T) {
 		},
 	}
 
-	out := FormatBundle(pr, diff, false)
+	out := FormatBundle(pr, diff, false, nil)
 
 	assert.Equal(t, 1, strings.Count(out, "<diff_hunk>"))
 	assert.Equal(t, 2, strings.Count(out, "<comment "))
@@ -198,7 +198,7 @@ func TestFormatBundleWithoutPR(t *testing.T) {
 		},
 	}
 
-	out := FormatBundle(nil, diff, false)
+	out := FormatBundle(nil, diff, false, nil)
 
 	assert.Contains(t, out, `<pr branch="feature -> main">`)
 	assert.Contains(t, out, `<diff>`)

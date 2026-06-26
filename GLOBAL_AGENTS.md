@@ -49,57 +49,18 @@ Never skip test. Never implement before test. Always include test and implementa
 
 <tools>
 <rule name="codebase-memory-mcp">
-Most projects use codebase-memory-mcp to maintain a knowledge graph of the codebase.
-ALWAYS prefer MCP graph tools over rg/grep/glob/file-search for code discovery.
+# Codebase Exploration Rules
 
-## Resolve Project Name
-Every graph tool call MUST include `project="<indexed-name>"`.
-Omitting it always fails with `"project not found or not indexed"`.
+You have access to the `codebase-memory-mcp` server, which maintains a high-performance knowledge graph of this repository. Follow these operational invariants to save tokens and minimize tool calls:
 
-Indexed names are path slugs, NOT repo folder names.
-  /Users/adamhamrick/Projects/chainlink → Users-adamhamrick-Projects-chainlink
-Resolution order:
-1. Use project-local rule if one specifies a codebase-memory project name.
-2. Else call `list_projects` and match `root_path` to the workspace root.
-3. Never guess from folder name alone.
-
-## Priority Order
-1. `search_graph` — find functions, classes, routes, variables by pattern
-2. `trace_path` — trace who calls a function or what it calls
-3. `get_code_snippet` — read specific function/class source code
-4. `query_graph` — run Cypher queries for complex patterns
-5. `get_architecture` — high-level project summary
-
-## When to fall back to rg/grep/glob
-- Searching for string literals, error messages, config values
-- Searching non-code files (Dockerfiles, shell scripts, configs)
-- When MCP tools return insufficient results
-
-## Examples
-
-Resolve project first:
-  list_projects() → match root_path → project="Users-adamhamrick-Projects-chainlink"
-Then:
-- Find a handler:
-    search_graph(project="Users-adamhamrick-Projects-chainlink", name_pattern=".*OrderHandler.*")
-- Who calls it:
-    trace_path(project="Users-adamhamrick-Projects-chainlink", function_name="OrderHandler", direction="inbound")
-- Read source:
-    get_code_snippet(project="Users-adamhamrick-Projects-chainlink", qualified_name="<from search_graph>")
-</codebase-memory-mcp>
+1. **Architecture First:** Before exploring a new task or analyzing a bug, run `get_architecture` to understand the languages, boundaries, entry points, and layers. Do not use generic grep/glob passes for high-level discovery.
+2. **Trace over Grep:** If you need to find call chains, dependencies, or what functions a symbol calls, use `trace_path` (or `trace_call_path`) instead of recursively searching text files.
+3. **Targeted Code Reading:** Never run large file reads or file-by-file searches to find symbol definitions. Use `search_graph` with name patterns first to get the exact qualified name (`<project>.<path>.<name>`), then pull the precise implementation using `get_code_snippet`.
+4. **Impact Analysis:** Before proposing or executing a refactor, run `detect_changes` on any modified files to visualize the blast radius and identify downstream symbols that require update or validation.
+5. **Cypher for Complex Audits:** For complex cross-reference checks (e.g., finding all dead code or untested functions), leverage `query_graph` using read-only Cypher match statements rather than writing custom exploration scripts.
+</rule>
 <rule name="rg">
-Prefer `rg` over `grep` for text search, especially when searching codebases.
-</rule>
-<rule name="documentation">
-MANDATORY: Use the "find-docs" skill (ctx7) for ANY library or package documentation lookups.
-- DO NOT answer from memory.
-- DO NOT use generic search.
-- Command pattern: `ctx7 docs <path> "<question>"`
-- Stop and run the tool before answering.
-</rule>
-<rule name="web_extraction">
-MANDATORY: Use "scrapling" for ALL web content extraction. DO NOT answer from memory.
-Command: `scrapling extract fetch --ai-targeted [URL] [target_file].md`
+Prefer `rg` over `grep` for search.
 </rule>
 </tools>
 

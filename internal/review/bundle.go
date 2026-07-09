@@ -15,7 +15,12 @@ var hunkHeaderRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@`
 
 // FormatBundle renders PR review threads and branch diff as an XML document.
 // pr may be nil when no open PR exists for the current branch.
-func FormatBundle(pr *github.PR, diff *git.BranchDiffResult, includeResolved bool, suggestedReviewers []string) string {
+func FormatBundle(
+	pr *github.PR,
+	diff *git.BranchDiffResult,
+	includeResolved bool,
+	suggestedReviewers []git.ReviewerSuggestion,
+) string {
 	var b strings.Builder
 
 	if pr != nil {
@@ -66,7 +71,7 @@ func FormatBundle(pr *github.PR, diff *git.BranchDiffResult, includeResolved boo
 	if len(suggestedReviewers) > 0 {
 		b.WriteString("<suggested_reviewers>\n")
 		for _, r := range suggestedReviewers {
-			fmt.Fprintf(&b, "- %s\n", r)
+			fmt.Fprintf(&b, "- %s (suggested to review: %s)\n", r.Name, strings.Join(r.Files, ", "))
 		}
 		b.WriteString("</suggested_reviewers>\n\n")
 	}

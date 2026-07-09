@@ -19,6 +19,8 @@ func Detect(a Agent, verbose bool) bool {
 		return detectCursor(verbose)
 	case Codex:
 		return detectCodex(verbose)
+	case OpenCode:
+		return detectOpenCode(verbose)
 	default:
 		return false
 	}
@@ -107,6 +109,18 @@ func detectCodex(verbose bool) bool {
 	}
 	if isDir(CodexConfigDir()) {
 		vlog(verbose, "codex: config dir exists (%s)", CodexConfigDir())
+		return true
+	}
+	return false
+}
+
+func detectOpenCode(verbose bool) bool {
+	if p, err := exec.LookPath("opencode"); err == nil {
+		vlog(verbose, "opencode: found in PATH (%s)", p)
+		return true
+	}
+	if isDir(OpenCodeConfigDir()) {
+		vlog(verbose, "opencode: config dir exists (%s)", OpenCodeConfigDir())
 		return true
 	}
 	return false

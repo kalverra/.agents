@@ -50,7 +50,7 @@ func (inst *Installer) Install() (*InstallReport, error) {
 
 	if !sel.anyAgent() {
 		output.Println("Nothing installed. Try: agents discover")
-		output.Println("Force paths with: agents install --targets claude,antigravity,cursor,codex")
+		output.Println("Force paths with: agents install --targets claude,antigravity,cursor,codex,opencode")
 		return nil, fmt.Errorf("no agents installed")
 	}
 
@@ -100,7 +100,12 @@ func (inst *Installer) Install() (*InstallReport, error) {
 		return nil, err
 	}
 
-	if err := inst.installSkills(didClaude, didCursor, didAntigravity, didCodex, skillDirs); err != nil {
+	didOpenCode, err := inst.installOpenCode(src, detected, forcing)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := inst.installSkills(didClaude, didCursor, didAntigravity, didCodex, didOpenCode, skillDirs); err != nil {
 		return nil, err
 	}
 
@@ -128,6 +133,9 @@ func installReportFromSelection(inst *Installer, sel installSelection) *InstallR
 	}
 	if sel.DidCodex {
 		report.Agents = append(report.Agents, "codex")
+	}
+	if sel.DidOpenCode {
+		report.Agents = append(report.Agents, "opencode")
 	}
 	return report
 }
@@ -211,11 +219,28 @@ func (inst *Installer) installCodex(src string, detected map[Agent]bool, forcing
 	return true, nil
 }
 
+func (inst *Installer) installOpenCode(src string, detected map[Agent]bool, forcing bool) (bool, error) {
+	if !TargetWanted(OpenCode, inst.Targets) {
+		return false, nil
+	}
+	if !detected[OpenCode] && !forcing {
+		return false, nil
+	}
+	if !detected[OpenCode] {
+		output.Warnf("opencode not detected; writing %s anyway (--targets).\n", MarkdownDest(OpenCode))
+	}
+	if err := inst.deployMarkdown(src, MarkdownDest(OpenCode), false); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (inst *Installer) installSkills(
 	didClaude,
 	didCursor,
 	didAntigravity,
-	didCodex bool,
+	didCodex,
+	didOpenCode bool,
 	skillDirs []string,
 ) error {
 	if !inst.WithSkills {
@@ -240,6 +265,7 @@ func (inst *Installer) installSkills(
 		}
 	}
 	_ = didCodex
+	_ = didOpenCode
 	return nil
 }
 

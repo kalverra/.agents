@@ -23,6 +23,11 @@ func CodexConfigDir() string {
 	return filepath.Join(homeDir(), ".codex")
 }
 
+// OpenCodeConfigDir returns the OpenCode global config directory.
+func OpenCodeConfigDir() string {
+	return filepath.Join(homeDir(), ".config", "opencode")
+}
+
 // HooksDeployDir is where hook scripts are copied at install time.
 func HooksDeployDir() string {
 	return filepath.Join(homeDir(), ".agents-hooks")
@@ -39,6 +44,8 @@ func MarkdownDest(a Agent) string {
 		return filepath.Join(homeDir(), ".cursor", "rules", "global-agents.mdc")
 	case Codex:
 		return filepath.Join(CodexConfigDir(), "AGENTS.md")
+	case OpenCode:
+		return filepath.Join(OpenCodeConfigDir(), "AGENTS.md")
 	default:
 		return ""
 	}
@@ -68,6 +75,8 @@ func SkillsDest(a Agent) string {
 		return filepath.Join(AntigravityConfigDir(), "skills")
 	case Codex:
 		return filepath.Join(CodexConfigDir(), "skills")
+	case OpenCode:
+		return filepath.Join(OpenCodeConfigDir(), "skills")
 	default:
 		return ""
 	}

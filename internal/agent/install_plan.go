@@ -59,10 +59,11 @@ type installSelection struct {
 	DidAntigravity bool
 	DidCursor      bool
 	DidCodex       bool
+	DidOpenCode    bool
 }
 
 func (s installSelection) anyAgent() bool {
-	return s.DidClaude || s.DidAntigravity || s.DidCursor || s.DidCodex
+	return s.DidClaude || s.DidAntigravity || s.DidCursor || s.DidCodex || s.DidOpenCode
 }
 
 func (s installSelection) hookScriptsNeeded() bool {
@@ -87,6 +88,10 @@ func computeSelection(inst *Installer, detected map[Agent]bool, forcing bool) in
 
 	if TargetWanted(Codex, inst.Targets) && (detected[Codex] || forcing) {
 		s.DidCodex = true
+	}
+
+	if TargetWanted(OpenCode, inst.Targets) && (detected[OpenCode] || forcing) {
+		s.DidOpenCode = true
 	}
 
 	return s
@@ -185,6 +190,14 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 		})
 	}
 
+	if sel.DidOpenCode {
+		plan.Markdown = append(plan.Markdown, markdownPlanEntry{
+			Agent:   "OpenCode",
+			Dest:    MarkdownDest(OpenCode),
+			Summary: "merge USER_AGENTS; keep hookable instructions (OpenCode hooks not installed)",
+		})
+	}
+
 	if inst.WithSkills {
 		if sel.DidClaude {
 			sp, err := inst.skillDestPlan("Claude", SkillsDest(Claude), skillDirs)
@@ -212,6 +225,15 @@ func (inst *Installer) buildInstallPlan(sel installSelection, skillDirs []string
 				fmt.Sprintf(
 					"Codex: skip %s — Codex loads user skills from %s by default; copying there would duplicate skills and conflict",
 					SkillsDest(Codex),
+					filepath.Join(inst.RepoRoot, "skills"),
+				),
+			)
+		}
+		if sel.DidOpenCode {
+			plan.SkillsNotes = append(plan.SkillsNotes,
+				fmt.Sprintf(
+					"OpenCode: skip %s — OpenCode loads user skills from %s by default; copying there would duplicate skills and conflict",
+					SkillsDest(OpenCode),
 					filepath.Join(inst.RepoRoot, "skills"),
 				),
 			)

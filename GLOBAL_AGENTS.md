@@ -51,17 +51,34 @@ Never skip test. Never implement before test. Always include test and implementa
 <rule name="codebase-memory-mcp">
 # Codebase Exploration Rules
 
-You have access to the `codebase-memory-mcp` server, which maintains a high-performance knowledge graph of this repository. Follow these operational invariants to save tokens and minimize tool calls:
+[codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — local MCP server that indexes repos into a persistent knowledge graph (functions, classes, call chains, routes, cross-service links). 14 tools, sub-ms queries, ~99% fewer tokens than file-by-file grep/read. Server identifier: `user-codebase-memory-mcp`.
 
-1. **Architecture First:** Before exploring a new task or analyzing a bug, run `get_architecture` to understand the languages, boundaries, entry points, and layers. Do not use generic grep/glob passes for high-level discovery.
-2. **Trace over Grep:** If you need to find call chains, dependencies, or what functions a symbol calls, use `trace_path` (or `trace_call_path`) instead of recursively searching text files.
-3. **Targeted Code Reading:** Never run large file reads or file-by-file searches to find symbol definitions. Use `search_graph` with name patterns first to get the exact qualified name (`<project>.<path>.<name>`), then pull the precise implementation using `get_code_snippet`.
-4. **Impact Analysis:** Before proposing or executing a refactor, run `detect_changes` on any modified files to visualize the blast radius and identify downstream symbols that require update or validation.
-5. **Cypher for Complex Audits:** For complex cross-reference checks (e.g., finding all dead code or untested functions), leverage `query_graph` using read-only Cypher match statements rather than writing custom exploration scripts.
+## Project parameter (required)
+
+Every tool call **except** `list_projects` must include `project`. Derive it from the repo's absolute path: strip the leading `/`, replace `/` with `-`.
+
+Example: `/Users/adamhamrick/Projects/chainlink` → `Users-adamhamrick-Projects-chainlink`
+
+Unsure? Call `list_projects` first to see indexed names and node counts.
+
+## Bootstrap
+
+If the project is not indexed, call `index_repository` with `repo_path` set to the absolute repo path. Auto-sync keeps the graph fresh after the first index.
+
+## Workflow
+
+Prefer graph tools over grep/glob/read for structural discovery. Fall back to `rg` only when the graph lacks coverage (unindexed files, comments, string literals).
+
+1. **Architecture first** — `get_architecture` for languages, packages, entry points, routes, hotspots, clusters, and boundaries. Skip broad grep/glob passes for high-level discovery.
+2. **Schema when needed** — `get_graph_schema` for node/edge counts, relationship patterns, and property definitions before writing Cypher.
+3. **Find symbols** — `search_graph` (BM25 `query`, regex `name_pattern`, or `semantic_query` array for vocabulary bridging). Paginate with `limit`/`offset` when `has_more` is true.
+4. **Read implementations** — `get_code_snippet` by qualified name (`<project>.<path_parts>.<name>`). Discover qualified names via `search_graph` first; avoid large file reads to hunt definitions.
+5. **Trace call chains** — `trace_path` (alias `trace_call_path`) for inbound/outbound callers. Depth 1–5.
+6. **Text in indexed files** — `search_code` for graph-scoped grep when you need literal text, not structure.
+7. **Impact before refactor** — `detect_changes` maps git diff to affected symbols, blast radius, and risk classification.
+8. **Complex audits** — `query_graph` with read-only Cypher (e.g. dead code: `WHERE NOT EXISTS { (f)<-[:CALLS]-() }`). No write/`MERGE`/`CALL` clauses.
 </rule>
 <rule name="rg">
 Prefer `rg` over `grep` for search.
 </rule>
 </tools>
-
-

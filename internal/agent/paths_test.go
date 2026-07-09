@@ -28,3 +28,14 @@ func TestAntigravityPaths(t *testing.T) {
 	expectedSkillsDest := filepath.Join(expectedDefaultDir, "skills")
 	require.Equal(t, expectedSkillsDest, SkillsDest(Antigravity))
 }
+
+func TestOpenCodePaths(t *testing.T) {
+	t.Parallel()
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	expectedConfigDir := filepath.Join(home, ".config", "opencode")
+	require.Equal(t, expectedConfigDir, OpenCodeConfigDir())
+	require.Equal(t, filepath.Join(expectedConfigDir, "AGENTS.md"), MarkdownDest(OpenCode))
+	require.Equal(t, filepath.Join(expectedConfigDir, "skills"), SkillsDest(OpenCode))
+}

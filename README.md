@@ -1,6 +1,6 @@
 # `~/.agents`
 
-A global home for all of your AI agents! Define global rules once, and sync them to Claude Code, Antigravity, Cursor, Codex, and any other agents you use.
+A global home for all of your AI agents! Define global rules once, and sync them to Claude Code, Antigravity, Cursor, Codex, OpenCode, and any other agents you use.
 
 ## Quick Start
 
@@ -43,6 +43,7 @@ mv ~/.claude/CLAUDE.md ~/.claude/CLAUDE.backup.md
 mv ~/.gemini/GEMINI.md ~/.gemini/GEMINI.backup.md
 mv ~/.cursor/global-rules.mdc ~/.cursor/global-rules.backup.mdc # If you have one
 mv ~/.codex/AGENTS.md ~/.codex/AGENTS.backup.md # If you have one
+mv ~/.config/opencode/AGENTS.md ~/.config/opencode/AGENTS.backup.md # If you have one
 
 # Use just (https://github.com/casey/just), a `make` alternative.
 brew install just
@@ -64,7 +65,7 @@ This serves to keep you focused, and helps stop you from bloating AI context. Wh
 
 ### [GLOBAL_AGENTS.md](GLOBAL_AGENTS.md)
 
-Your global context that is loaded into every agent. It replaces `CLAUDE.md`, `GEMINI.md`, `.cursor/global-rules.mdc`, `.codex/AGENTS.md`, etc.
+Your global context that is loaded into every agent. It replaces `CLAUDE.md`, `GEMINI.md`, `.cursor/global-rules.mdc`, `.codex/AGENTS.md`, `~/.config/opencode/AGENTS.md`, etc.
 
 ### [`find-docs`](skills/find-docs/SKILL.md)
 

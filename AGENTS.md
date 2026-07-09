@@ -33,6 +33,7 @@ Use ctx7 docs <path> <question>.
 - Gemini Go Package: /googleapis/go-genai
 - Cursor: /websites/cursor
 - Antigravity: /websites/antigravity
+- OpenCode: /websites/opencode
 </agents>
 - zerolog: /rs/zerolog
 - todoist API: /websites/developer_todoist_api_v1

@@ -1,70 +1,141 @@
 package git
 
 import (
+	"bytes"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func addAndCommitWithDate(t *testing.T, dir, path, content, message, author, email string, date time.Time) string {
+	t.Helper()
+	full := filepath.Join(dir, path)
+	require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o750))
+	require.NoError(t, os.WriteFile(full, []byte(content), 0o600))
+
+	runGitCmd(t, dir, "add", path)
+
+	dateStr := date.Format(time.RFC3339)
+	runGitCmd(t, dir, "config", "user.name", author)
+	runGitCmd(t, dir, "config", "user.email", email)
+
+	// Create commit script to set dates easily
+	env := os.Environ()
+	env = append(env, "GIT_AUTHOR_DATE="+dateStr, "GIT_COMMITTER_DATE="+dateStr)
+
+	runGitCmdWithEnv(t, dir, env, "commit", "-m", message)
+
+	return runGitCmd(t, dir, "rev-parse", "HEAD")
+}
+
+func runGitCmdWithEnv(t *testing.T, dir string, env []string, args ...string) string {
+	t.Helper()
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = env
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	require.NoError(t, err, "git %v failed: %s", args, stderr.String())
+	return strings.TrimSpace(stdout.String())
+}
+
 func TestSuggestReviewers(t *testing.T) {
 	t.Parallel()
 
 	dir := initTestRepo(t)
+	now := time.Now()
 
-	// Create initial file with Author 1
-	runGitCmd(t, dir, "config", "user.name", "Author One")
-	runGitCmd(t, dir, "config", "user.email", "one@example.com")
-	mainHash := addAndCommit(t, dir, "README.md", "line 1\nline 2\nline 3\nline 4\nline 5\n", "init")
+	// Author 1 creates file A 2 months ago (60 days)
+	_ = addAndCommitWithDate(
+		t,
+		dir,
+		"A.txt",
+		"A1\nA2\nA3\nA4\n",
+		"init A",
+		"Author Old",
+		"old@example.com",
+		now.Add(-60*24*time.Hour),
+	)
 	renameDefaultBranch(t, dir, "main")
-	setOriginDefault(t, dir, "main", mainHash)
 
-	// Author 2 modifies some lines
-	runGitCmd(t, dir, "config", "user.name", "Author Two")
-	runGitCmd(t, dir, "config", "user.email", "two@example.com")
-	addAndCommit(t, dir, "README.md", "line 1\nline 2 mod\nline 3\nline 4\nline 5\n", "mod by two")
+	// Author 2 modifies file A 2 hours ago
+	_ = addAndCommitWithDate(
+		t,
+		dir,
+		"A.txt",
+		"A1 mod\nA2\nA3\nA4\n",
+		"mod A",
+		"Author Recent",
+		"recent@example.com",
+		now.Add(-2*time.Hour),
+	)
 
-	// Author 3 modifies some lines
-	runGitCmd(t, dir, "config", "user.name", "Author Three")
-	runGitCmd(t, dir, "config", "user.email", "three@example.com")
-	baseHash := addAndCommit(t, dir, "README.md", "line 1\nline 2 mod\nline 3 mod\nline 4\nline 5\n", "mod by three")
+	// Author Old modifies file B 2 months ago (lots of lines to try and beat the decay if we used simple counts)
+	_ = addAndCommitWithDate(
+		t,
+		dir,
+		"B.txt",
+		"B1\nB2\nB3\nB4\nB5\nB6\n",
+		"init B",
+		"Author Old",
+		"old@example.com",
+		now.Add(-60*24*time.Hour),
+	)
 
-	// Now we are Author Four, making changes in a PR
-	runGitCmd(t, dir, "config", "user.name", "Author Four")
-	runGitCmd(t, dir, "config", "user.email", "four@example.com")
+	baseHash := runGitCmd(t, dir, "rev-parse", "HEAD")
 
-	// Simulate diff where we modify line 2 and 3
-	patch := `diff --git a/README.md b/README.md
-index 1234567..89abcdef 100644
---- a/README.md
-+++ b/README.md
-@@ -1,5 +1,5 @@
- line 1
--line 2 mod
--line 3 mod
-+line 2 new
-+line 3 new
- line 4
- line 5
+	patchA := `diff --git a/A.txt b/A.txt
+--- a/A.txt
++++ b/A.txt
+@@ -1,4 +1,4 @@
+-A1 mod
++A1 new
+ A2
+ A3
+ A4
+`
+
+	patchB := `diff --git a/B.txt b/B.txt
+--- a/B.txt
++++ b/B.txt
+@@ -1,6 +1,6 @@
+-B1
+-B2
+-B3
++B1 new
++B2 new
++B3 new
+ B4
+ B5
+ B6
 `
 
 	diffResult := &BranchDiffResult{
 		MergeBase: baseHash,
 		Files: []FileDiff{
-			{
-				Path:  "README.md",
-				Patch: patch,
-			},
+			{Path: "A.txt", Patch: patchA, Status: "modified"},
+			{Path: "B.txt", Patch: patchB, Status: "modified"},
 		},
 	}
 
-	reviewers, err := SuggestReviewers(dir, diffResult, "Author Four", 3)
+	reviewers, err := SuggestReviewers(dir, diffResult, "Current Author", 3)
 	require.NoError(t, err)
 
-	// Line 2 was last modified by Author Two
-	// Line 3 was last modified by Author Three
-	// So both should be suggested. Author One only touched line 1, 4, 5, which are context lines.
-	// But we blame on deleted lines (-2,2) -> lines 2 and 3.
+	require.Len(t, reviewers, 2)
 
-	assert.ElementsMatch(t, []string{"Author Three", "Author Two"}, reviewers)
+	// Author Recent should be first because 2 hours ago > 2 months ago, even though Old changed 3 lines and Recent changed 1
+	assert.Equal(t, "Author Recent", reviewers[0].Name)
+	assert.ElementsMatch(t, []string{"A.txt"}, reviewers[0].Files)
+
+	assert.Equal(t, "Author Old", reviewers[1].Name)
+	assert.ElementsMatch(t, []string{"B.txt"}, reviewers[1].Files)
 }

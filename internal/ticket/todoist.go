@@ -78,7 +78,7 @@ func newTodoistClient(l zerolog.Logger, cfg TodoistConfig) *resty.Client {
 				}
 			}).
 			Msg("http round trip")
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			return fmt.Errorf(
 				"todoist API error %d: %s",
 				resp.StatusCode(), resp.String(),
@@ -108,7 +108,7 @@ func (t *Todoist) Fetch(ctx context.Context, id string) (*Ticket, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.IsError() {
+	if resp.IsStatusFailure() {
 		if resp.StatusCode() == http.StatusNotFound {
 			return nil, fmt.Errorf("task %s not found", resolved)
 		}
@@ -164,7 +164,7 @@ func (t *Todoist) listTaskComments(ctx context.Context, taskID string) ([]TaskCo
 		if err != nil {
 			return nil, err
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			return nil, fmt.Errorf(
 				"todoist GET comments: %s: %s",
 				resp.Status(),
@@ -255,7 +255,7 @@ func (t *Todoist) Comment(ctx context.Context, id string, body string) error {
 	if err != nil {
 		return err
 	}
-	if resp.IsError() {
+	if resp.IsStatusFailure() {
 		return fmt.Errorf(
 			"todoist POST comments: %s: %s",
 			resp.Status(),

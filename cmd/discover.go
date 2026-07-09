@@ -71,6 +71,15 @@ var discoverCmd = &cobra.Command{
 		}
 		results = append(results, codex)
 
+		// OpenCode
+		opencode := info{Name: "opencode", Detected: agent.Detect(agent.OpenCode, verbose)}
+		if opencode.Detected {
+			opencode.Context = agent.MarkdownDest(agent.OpenCode)
+			opencode.Skills = filepath.Join(home, ".agents", "skills")
+			opencode.Note = "OpenCode user skills load from ~/.agents/skills by default"
+		}
+		results = append(results, opencode)
+
 		output.Write("discover", results, func() {
 			output.Println("Discovery (signals only — tools need not be running):")
 			output.Println()

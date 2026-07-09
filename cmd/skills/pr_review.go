@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,18 +17,18 @@ import (
 )
 
 type prReviewResult struct {
-	ReviewPath         string         `json:"review_path"`
-	PRNumber           int            `json:"pr_number,omitempty"`
-	PRURL              string         `json:"pr_url,omitempty"`
-	CurrentBranch      string         `json:"current_branch"`
-	BaseBranch         string         `json:"base_branch"`
-	MergeBase          string         `json:"merge_base"`
-	Head               string         `json:"head"`
-	HasLocalChanges    bool           `json:"has_local_changes"`
-	UnresolvedCount    int            `json:"unresolved_thread_count"`
-	Stats              git.DiffStats  `json:"stats"`
-	Files              []git.FileDiff `json:"files"`
-	SuggestedReviewers []string       `json:"suggested_reviewers,omitempty"`
+	ReviewPath         string                   `json:"review_path"`
+	PRNumber           int                      `json:"pr_number,omitempty"`
+	PRURL              string                   `json:"pr_url,omitempty"`
+	CurrentBranch      string                   `json:"current_branch"`
+	BaseBranch         string                   `json:"base_branch"`
+	MergeBase          string                   `json:"merge_base"`
+	Head               string                   `json:"head"`
+	HasLocalChanges    bool                     `json:"has_local_changes"`
+	UnresolvedCount    int                      `json:"unresolved_thread_count"`
+	Stats              git.DiffStats            `json:"stats"`
+	Files              []git.FileDiff           `json:"files"`
+	SuggestedReviewers []git.ReviewerSuggestion `json:"suggested_reviewers,omitempty"`
 }
 
 var prReviewCmd = &cobra.Command{
@@ -163,7 +164,7 @@ var prReviewCmd = &cobra.Command{
 			if len(suggestedReviewers) > 0 {
 				output.Printf("\nSuggested reviewers based on git history:\n")
 				for _, r := range suggestedReviewers {
-					output.Printf("- %s\n", r)
+					output.Printf("- %s (suggested to review: %s)\n", r.Name, strings.Join(r.Files, ", "))
 				}
 			}
 		})

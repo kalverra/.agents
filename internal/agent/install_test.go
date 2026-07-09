@@ -113,6 +113,19 @@ func TestComputeSelection_ForcedCodex(t *testing.T) {
 	require.False(t, sel.hookScriptsNeeded())
 }
 
+func TestComputeSelection_ForcedOpenCode(t *testing.T) {
+	t.Parallel()
+
+	inst := &Installer{
+		Targets: ParseTargets("opencode"),
+	}
+	detected := map[Agent]bool{OpenCode: false}
+	sel := computeSelection(inst, detected, true)
+	require.True(t, sel.DidOpenCode)
+	require.True(t, sel.anyAgent())
+	require.False(t, sel.hookScriptsNeeded())
+}
+
 func TestComputeSelection_AntigravityOnly(t *testing.T) {
 	t.Parallel()
 

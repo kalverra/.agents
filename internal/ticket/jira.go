@@ -74,7 +74,7 @@ func newJiraClient(l zerolog.Logger, cfg JiraConfig) *resty.Client {
 				}
 			}).
 			Msg("jira http round trip")
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			return fmt.Errorf(
 				"jira API error %d: %s",
 				resp.StatusCode(), strings.TrimSpace(resp.String()),

@@ -1,5 +1,5 @@
 // Package agent provides detection, path resolution, and installation logic
-// for deploying agent instructions to Claude Code, Antigravity, Cursor, and Codex.
+// for deploying agent instructions to Claude Code, Antigravity, Cursor, Codex, and OpenCode.
 package agent
 
 import (
@@ -16,11 +16,12 @@ const (
 	Antigravity Agent = "antigravity"
 	Cursor      Agent = "cursor"
 	Codex       Agent = "codex"
+	OpenCode    Agent = "opencode"
 )
 
 // All returns all supported agents.
 func All() []Agent {
-	return []Agent{Claude, Antigravity, Cursor, Codex}
+	return []Agent{Claude, Antigravity, Cursor, Codex, OpenCode}
 }
 
 // ParseTargets splits a comma-separated string into a list of agents.

@@ -233,3 +233,189 @@ func TestJira_Fetch_missingToken(t *testing.T) {
 	_, err := p.Fetch(context.Background(), "X-1")
 	require.Error(t, err)
 }
+
+func TestJira_CreateIssue_success(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/rest/api/3/issue" {
+			assert.Failf(t, "unexpected request", "unexpected %s %s", r.Method, r.URL.String())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var body map[string]any
+		err := json.NewDecoder(r.Body).Decode(&body)
+		require.NoError(t, err)
+
+		fields, ok := body["fields"].(map[string]any)
+		require.True(t, ok)
+		proj, _ := fields["project"].(map[string]any)
+		assert.Equal(t, "DX", proj["key"])
+		assert.Equal(t, "New Task", fields["summary"])
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":   "10050",
+			"key":  "DX-100",
+			"self": "http://example/rest/api/3/issue/10050",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	u := srv.URL
+	host := u[len("http://"):]
+	p := NewJira(zerolog.Nop(), JiraConfig{
+		Email:      "a@b.c",
+		APIToken:   "tok",
+		Domain:     host,
+		HTTPScheme: "http",
+	})
+	got, err := p.CreateIssue(context.Background(), CreateIssueRequest{
+		Project:     "DX",
+		Summary:     "New Task",
+		Description: "Task description",
+		IssueType:   "Task",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "DX-100", got.ID)
+	assert.Equal(t, "New Task", got.Title)
+	assert.Equal(t, "http://"+host+"/browse/DX-100", got.URL)
+}
+
+func TestJira_CreateIssue_withEpic(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/rest/api/3/issue" {
+			assert.Failf(t, "unexpected request", "unexpected %s %s", r.Method, r.URL.String())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var body map[string]any
+		err := json.NewDecoder(r.Body).Decode(&body)
+		require.NoError(t, err)
+
+		fields, ok := body["fields"].(map[string]any)
+		require.True(t, ok)
+		parent, ok := fields["parent"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "DX-50", parent["key"])
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":   "10051",
+			"key":  "DX-101",
+			"self": "http://example/rest/api/3/issue/10051",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	u := srv.URL
+	host := u[len("http://"):]
+	p := NewJira(zerolog.Nop(), JiraConfig{
+		Email:      "a@b.c",
+		APIToken:   "tok",
+		Domain:     host,
+		HTTPScheme: "http",
+	})
+	got, err := p.CreateIssue(context.Background(), CreateIssueRequest{
+		Project:     "DX",
+		Summary:     "Child Task",
+		EpicKey:     "DX-50",
+		Description: "Child of epic",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "DX-101", got.ID)
+}
+
+func TestJira_ListEpics_success(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet &&
+			(r.URL.Path == "/rest/api/3/search/jql" || r.URL.Path == "/rest/api/3/search") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"issues": []map[string]any{
+					{
+						"id":  "10",
+						"key": "DX-10",
+						"fields": map[string]any{
+							"summary": "Core Infrastructure Epic",
+							"status":  map[string]any{"name": "In Progress"},
+						},
+					},
+					{
+						"id":  "11",
+						"key": "DX-11",
+						"fields": map[string]any{
+							"summary": "Agent Ticketing Flow Epic",
+							"status":  map[string]any{"name": "In Progress"},
+						},
+					},
+				},
+				"total": 2,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	u := srv.URL
+	host := u[len("http://"):]
+	p := NewJira(zerolog.Nop(), JiraConfig{
+		Email:      "a@b.c",
+		APIToken:   "tok",
+		Domain:     host,
+		HTTPScheme: "http",
+	})
+	epics, err := p.ListEpics(context.Background())
+	require.NoError(t, err)
+	require.Len(t, epics, 2)
+	assert.Equal(t, "DX-10", epics[0].ID)
+	assert.Equal(t, "Core Infrastructure Epic", epics[0].Title)
+	assert.Equal(t, "DX-11", epics[1].ID)
+	assert.Equal(t, "Agent Ticketing Flow Epic", epics[1].Title)
+}
+
+func TestJira_ListAssignedTickets_success(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet &&
+			(r.URL.Path == "/rest/api/3/search/jql" || r.URL.Path == "/rest/api/3/search") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"issues": []map[string]any{
+					{
+						"id":  "55",
+						"key": "DX-55",
+						"fields": map[string]any{
+							"summary": "Fix auth token refresh",
+							"status":  map[string]any{"name": "In Progress"},
+						},
+					},
+				},
+				"total": 1,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	u := srv.URL
+	host := u[len("http://"):]
+	p := NewJira(zerolog.Nop(), JiraConfig{
+		Email:      "a@b.c",
+		APIToken:   "tok",
+		Domain:     host,
+		HTTPScheme: "http",
+	})
+	tickets, err := p.ListAssignedTickets(context.Background())
+	require.NoError(t, err)
+	require.Len(t, tickets, 1)
+	assert.Equal(t, "DX-55", tickets[0].ID)
+	assert.Equal(t, "Fix auth token refresh", tickets[0].Title)
+}

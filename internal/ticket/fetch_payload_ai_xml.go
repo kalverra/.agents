@@ -1,6 +1,9 @@
 package ticket
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // FetchPayloadToAIXML renders a ticket fetch result as XML for LLM-friendly parsing (--ai-output).
 func FetchPayloadToAIXML(p FetchPayload) string {
@@ -47,4 +50,36 @@ func xmlTextEscape(s string) string {
 	s = strings.ReplaceAll(s, "\"", "&quot;")
 	s = strings.ReplaceAll(s, "'", "&apos;")
 	return s
+}
+
+// TicketToMarkdownFile renders ticket details and comments into a structured XML-markdown string for <KEY>.md files.
+func TicketToMarkdownFile(tk *Ticket) string {
+	if tk == nil {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "<ticket summary=%q link=%q id=%q status=%q>\n", tk.Title, tk.URL, tk.ID, tk.Status)
+	b.WriteString("<details>\n")
+	if strings.TrimSpace(tk.Description) != "" {
+		b.WriteString(tk.Description)
+		b.WriteString("\n")
+	}
+	b.WriteString("</details>\n")
+	b.WriteString("<comments>\n")
+	for _, c := range tk.Comments {
+		if c.PostedAt != "" {
+			fmt.Fprintf(&b, "  <comment time=%q>\n", c.PostedAt)
+		} else {
+			b.WriteString("  <comment>\n")
+		}
+		if strings.TrimSpace(c.Content) != "" {
+			b.WriteString("  ")
+			b.WriteString(c.Content)
+			b.WriteString("\n")
+		}
+		b.WriteString("  </comment>\n")
+	}
+	b.WriteString("</comments>\n")
+	b.WriteString("</ticket>\n")
+	return b.String()
 }

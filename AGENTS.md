@@ -1,4 +1,16 @@
-Portable skills and rules. GLOBAL_AGENTS.md is machine-wide context.
+<goals>
+* Portable skills and rules for all agents.
+* Auto-discover and install skills across agents installed on machine
+* Use agent for reasoning, code for everything else. Agent shouldn't waste time fumbling with MCP servers or API calls to get info. Anything deterministic should be a flow in code to gather info for the AI to do what it's best at.
+</goals>
+
+<important-files>
+GLOBAL_AGENTS.md - machine-wide context to dictate universal rules + personality
+USER_AGENTS.md - more private details to inject in GLOBAL_AGENTS.md
+skills/ - Markdown skills for agents to use.
+cmd/ - Go CLI entry
+internal/ - Go CLI internals
+</important-files>
 
 <commands>
 go mod tidy # tidy dependencies
@@ -11,32 +23,16 @@ go run . [cmd] --ai-output # run commands with output specifically for LLM consu
 DO NOT run `go fmt`, `goimports`, or any other base go commands outside of the above
 </commands>
 
-<skills>
-Located in `skills/`
-- Define general, helpful skills for all agents to run
-- Push as much work as possible to Go, only involve AI when absolutely necessary.
-</skills>
-
 <style>
 - Use zerolog for all logging. Logging is not user output, it is only for debugging.
 - When an official Go package doesn't exist to write a client to an API, use resty.
 - Each Go command should utilize the `--ai-output` flag to format output for consumption by LLMs.
-- AI output uses a consistent JSON envelope: `{"status":"ok","command":"<name>","data":<payload>}` (except `skills ticket fetch --ai-output`, which prints XML for the ticket payload).
 - Use `output.Write(command, data, func() {...})` to cleanly handle both JSON and human output paths in one call without branching.
 </style>
 
 <docs>
-Use ctx7 docs <path> <question>.
-<agents>
-- Claude: /websites/platform_claude_en
-- Gemini API: /websites/ai_google_dev_gemini-api
-- Gemini Go Package: /googleapis/go-genai
-- Cursor: /websites/cursor
-- Antigravity: /websites/antigravity
-- OpenCode: /websites/opencode
-</agents>
-- zerolog: /rs/zerolog
-- todoist API: /websites/developer_todoist_api_v1
-- resty: /go-resty/docs
-- go-github: /google/go-github
+When making API calls, look for up-to-date, officially supported Go clients. If none exist, build a basic client using resty.
+- [Resty Docs](https://resty.dev/)
+- [Todoist API](https://developer.todoist.com/api/v1/)
+- [Jira API](https://developer.atlassian.com/cloud/jira/platform/rest/v3)
 </docs>

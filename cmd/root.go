@@ -73,6 +73,7 @@ func init() {
 		BoolVarP(&cfg.AIOutput, "ai-output", "a", false, "Format output for consumption by LLMs")
 
 	rootCmd.AddCommand(skills.Cmd)
+	rootCmd.AddCommand(skills.TicketCmd)
 }
 
 // Execute runs the root command.

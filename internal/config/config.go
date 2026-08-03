@@ -26,11 +26,18 @@ type Config struct {
 	JiraAPIToken string `mapstructure:"jira_api_token"`
 	// JiraCloud: site hostname only, e.g. your-org.atlassian.net (no scheme). Env: JIRA_DOMAIN.
 	JiraDomain string `mapstructure:"jira_domain"`
+	// JiraCloud: default project key when creating tickets (default "DX"). Env: JIRA_DEFAULT_PROJECT.
+	JiraDefaultProject string `mapstructure:"jira_default_project"`
+
+	// WorkRepos is a list of organization wildcards or owner/repo paths representing work repositories. Env: WORK_REPOS.
+	WorkRepos []string `mapstructure:"work_repos"`
 }
 
 const (
 	// DefaultLogLevel is the default log level.
 	DefaultLogLevel = "info"
+	// DefaultJiraProject is the default Jira project key.
+	DefaultJiraProject = "DX"
 )
 
 // LoadOption is a function that can be used to load configuration.
@@ -70,6 +77,7 @@ func Load(opts ...LoadOption) (*Config, error) {
 	v.AddConfigPath(filepath.Join(home, ".agents"))
 
 	v.SetDefault("log_level", DefaultLogLevel)
+	v.SetDefault("jira_default_project", DefaultJiraProject)
 
 	// Bind all configuration fields to environment variables
 	typ := reflect.TypeFor[Config]()
@@ -99,6 +107,16 @@ func Load(opts ...LoadOption) (*Config, error) {
 	cfg := &Config{}
 	if err := v.Unmarshal(cfg); err != nil {
 		return nil, err
+	}
+
+	// Handle WORK_REPOS env var if it was provided as a comma-separated string
+	if rawWorkRepos := v.GetString("work_repos"); len(cfg.WorkRepos) == 0 && rawWorkRepos != "" {
+		parts := strings.SplitSeq(rawWorkRepos, ",")
+		for p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				cfg.WorkRepos = append(cfg.WorkRepos, trimmed)
+			}
+		}
 	}
 
 	return cfg, nil

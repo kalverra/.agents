@@ -12,8 +12,6 @@ You'll need to setup these tools for all the skills and instructions to work pro
 
 - [Go](https://go.dev/): The CLI is written in Go.
 - [rtk](https://github.com/rtk-ai/rtk): Don't pay for extraneous shell command tokens.
-- [ctx7](https://context7.com/): Efficient and intelligent docs lookup for ai agents.
-- [scrapling](https://github.com/scrapling/scrapling): Efficient web scraping for ai agents, don't waste tokens on <html> tags.
 
 ### Edit `USER_AGENTS.md`
 
@@ -88,23 +86,3 @@ Skills and rules are kept as compact as possible — minimal tokens, maximum sig
 ## Contributing
 
 I've only thoroughly tested things on a few tools I personally use. If you notice issues with any, please make an issue or PR!
-
-### Evaluation
-
-The repo includes an evaluation harness to test whether agents accurately follow the instructions and skills defined here, while keeping token usage low.
-
-1. Feeds [test cases](./eval/cases/) to a subject LLM and captures output
-2. Feeds the input and output to a judge LLM, which scores each response 1-5 against a rubric
-3. Reports scores and token counts
-
-Eval uses the Gemini API (requires `GEMINI_API_KEY`).
-
-```bash
-# Defaults: gemini-2.5-flash as subject, gemini-2.5-pro as judge
-GEMINI_API_KEY="your-key" just eval
-
-# Run 3 evaluations and collect averages
-GEMINI_API_KEY="your-key" just eval 3
-```
-
-Full results are written to `eval/eval_results.md`.

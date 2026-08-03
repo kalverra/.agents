@@ -76,3 +76,28 @@ func TestFetchPayloadToAIXML_omitsEmptyOptionalFields(t *testing.T) {
 	assert.NotContains(t, got, "<posted_at>")
 	assert.NotContains(t, got, "<project_id>")
 }
+
+func TestTicketToMarkdownFile(t *testing.T) {
+	t.Parallel()
+	tk := &Ticket{
+		ID:          "DX-123",
+		Title:       "Implement widget",
+		Description: "## Goal\nAdd widget",
+		Status:      "In Progress",
+		URL:         "https://acme.atlassian.net/browse/DX-123",
+		Comments: []TaskComment{
+			{ID: "c1", Content: "Tried approach A", PostedAt: "2026-08-03 12:00:00"},
+		},
+	}
+	got := TicketToMarkdownFile(tk)
+	assert.Contains(
+		t,
+		got,
+		`<ticket summary="Implement widget" link="https://acme.atlassian.net/browse/DX-123" id="DX-123" status="In Progress">`,
+	)
+	assert.Contains(t, got, "<details>\n## Goal\nAdd widget\n</details>")
+	assert.Contains(t, got, "<comments>")
+	assert.Contains(t, got, `<comment time="2026-08-03 12:00:00">`)
+	assert.Contains(t, got, "Tried approach A")
+	assert.Contains(t, got, "</ticket>")
+}

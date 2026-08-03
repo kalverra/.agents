@@ -236,6 +236,184 @@ func (j *Jira) Comment(ctx context.Context, ref string, body string) error {
 	return nil
 }
 
+// CreateIssueRequest holds parameters for creating a Jira issue.
+type CreateIssueRequest struct {
+	Project     string `json:"project"`
+	Summary     string `json:"summary"`
+	Description string `json:"description"`
+	IssueType   string `json:"issuetype"`
+	EpicKey     string `json:"epic_key,omitempty"`
+}
+
+// CreateIssue creates a new Jira issue via REST v3 POST /issue.
+func (j *Jira) CreateIssue(ctx context.Context, req CreateIssueRequest) (*Ticket, error) {
+	if err := j.validate(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.Project) == "" {
+		return nil, fmt.Errorf("project key is required")
+	}
+	if strings.TrimSpace(req.Summary) == "" {
+		return nil, fmt.Errorf("summary is required")
+	}
+	issueType := strings.TrimSpace(req.IssueType)
+	if issueType == "" {
+		issueType = "Task"
+	}
+
+	fields := map[string]any{
+		"project":   map[string]any{"key": req.Project},
+		"summary":   req.Summary,
+		"issuetype": map[string]any{"name": issueType},
+	}
+	if strings.TrimSpace(req.Description) != "" {
+		fields["description"] = plainBodyToADF(req.Description)
+	}
+	if epicKey := strings.TrimSpace(req.EpicKey); epicKey != "" {
+		fields["parent"] = map[string]any{"key": epicKey}
+	}
+
+	payload := map[string]any{
+		"fields": fields,
+	}
+
+	resp, err := j.client.R().
+		SetContext(ctx).
+		SetHeader("Content-Type", "application/json").
+		SetBody(payload).
+		Post("/issue")
+	if err != nil {
+		return nil, err
+	}
+
+	var created struct {
+		ID  string `json:"id"`
+		Key string `json:"key"`
+	}
+	if err := json.Unmarshal(resp.Bytes(), &created); err != nil {
+		return nil, fmt.Errorf("decoding created issue response: %w", err)
+	}
+
+	return &Ticket{
+		ID:          created.Key,
+		Title:       req.Summary,
+		Description: req.Description,
+		URL:         j.browseURL(created.Key),
+	}, nil
+}
+
+// ListEpics searches Jira for active Epics assigned to current user or updated recently.
+func (j *Jira) ListEpics(ctx context.Context) ([]*Ticket, error) {
+	if err := j.validate(); err != nil {
+		return nil, err
+	}
+
+	jql := "issuetype = Epic AND statusCategory != Done ORDER BY updated DESC"
+	resp, err := j.client.R().
+		SetContext(ctx).
+		SetQueryParams(map[string]string{
+			"jql":        jql,
+			"fields":     "summary,status",
+			"maxResults": "20",
+		}).
+		Get("/search/jql")
+	if err != nil || (resp != nil && resp.StatusCode() == 410) {
+		resp, err = j.client.R().
+			SetContext(ctx).
+			SetQueryParams(map[string]string{
+				"jql":        jql,
+				"fields":     "summary,status",
+				"maxResults": "20",
+			}).
+			Get("/search")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var searchRes struct {
+		Issues []struct {
+			Key    string `json:"key"`
+			Fields struct {
+				Summary string `json:"summary"`
+				Status  struct {
+					Name string `json:"name"`
+				} `json:"status"`
+			} `json:"fields"`
+		} `json:"issues"`
+	}
+	if err := json.Unmarshal(resp.Bytes(), &searchRes); err != nil {
+		return nil, fmt.Errorf("decoding search response: %w", err)
+	}
+
+	var epics []*Ticket
+	for _, item := range searchRes.Issues {
+		epics = append(epics, &Ticket{
+			ID:     item.Key,
+			Title:  item.Fields.Summary,
+			Status: item.Fields.Status.Name,
+			URL:    j.browseURL(item.Key),
+		})
+	}
+	return epics, nil
+}
+
+// ListAssignedTickets searches Jira for active issues assigned to current user.
+func (j *Jira) ListAssignedTickets(ctx context.Context) ([]*Ticket, error) {
+	if err := j.validate(); err != nil {
+		return nil, err
+	}
+
+	jql := "assignee = currentUser() AND issuetype != Epic AND statusCategory != Done ORDER BY updated DESC"
+	resp, err := j.client.R().
+		SetContext(ctx).
+		SetQueryParams(map[string]string{
+			"jql":        jql,
+			"fields":     "summary,status",
+			"maxResults": "20",
+		}).
+		Get("/search/jql")
+	if err != nil || (resp != nil && resp.StatusCode() == 410) {
+		resp, err = j.client.R().
+			SetContext(ctx).
+			SetQueryParams(map[string]string{
+				"jql":        jql,
+				"fields":     "summary,status",
+				"maxResults": "20",
+			}).
+			Get("/search")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var searchRes struct {
+		Issues []struct {
+			Key    string `json:"key"`
+			Fields struct {
+				Summary string `json:"summary"`
+				Status  struct {
+					Name string `json:"name"`
+				} `json:"status"`
+			} `json:"fields"`
+		} `json:"issues"`
+	}
+	if err := json.Unmarshal(resp.Bytes(), &searchRes); err != nil {
+		return nil, fmt.Errorf("decoding search response: %w", err)
+	}
+
+	var tickets []*Ticket
+	for _, item := range searchRes.Issues {
+		tickets = append(tickets, &Ticket{
+			ID:     item.Key,
+			Title:  item.Fields.Summary,
+			Status: item.Fields.Status.Name,
+			URL:    j.browseURL(item.Key),
+		})
+	}
+	return tickets, nil
+}
+
 type jiraIssueEnvelope struct {
 	Key    string `json:"key"`
 	Fields struct {

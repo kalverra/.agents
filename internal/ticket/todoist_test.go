@@ -232,3 +232,73 @@ func TestTodoist_Comment_errorStatus(t *testing.T) {
 	err := p.Comment(context.Background(), "12345", "x")
 	require.Error(t, err)
 }
+
+func TestTodoist_SearchTasksByJiraKey_success(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == testAPIv1Base+"/tasks" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{
+					{
+						"id":          "777",
+						"content":     "[DX-100] Implement search feature",
+						"description": "Synced from Jira DX-100",
+						"checked":     false,
+					},
+					{
+						"id":      "888",
+						"content": "Unrelated task",
+						"checked": false,
+					},
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewTodoist(zerolog.Nop(), TodoistConfig{Token: "tok", BaseURL: srv.URL + testAPIv1Base})
+	got, err := p.SearchTasksByJiraKey(context.Background(), "DX-100")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "777", got.ID)
+	assert.Equal(t, "[DX-100] Implement search feature", got.Title)
+}
+
+func TestTodoist_CreateTask_success(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == testAPIv1Base+"/tasks" {
+			var body map[string]any
+			err := json.NewDecoder(r.Body).Decode(&body)
+			require.NoError(t, err)
+
+			assert.Equal(t, "New Todoist task", body["content"])
+			assert.Equal(t, "Task description", body["description"])
+
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "999",
+				"content":     "New Todoist task",
+				"description": "Task description",
+				"checked":     false,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewTodoist(zerolog.Nop(), TodoistConfig{Token: "tok", BaseURL: srv.URL + testAPIv1Base})
+	got, err := p.CreateTask(context.Background(), CreateTaskRequest{
+		Title:       "New Todoist task",
+		Description: "Task description",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "999", got.ID)
+	assert.Equal(t, "New Todoist task", got.Title)
+}

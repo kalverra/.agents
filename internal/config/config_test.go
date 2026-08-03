@@ -66,3 +66,12 @@ func TestFlagsOverrideEnv(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "trace", cfg.LogLevel)
 }
+
+func TestLoadEnv_WorkReposAndJiraDefaultProject(t *testing.T) {
+	t.Setenv("WORK_REPOS", "acme/*,github.com/corp/portal")
+	t.Setenv("JIRA_DEFAULT_PROJECT", "DX")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"acme/*", "github.com/corp/portal"}, cfg.WorkRepos)
+	assert.Equal(t, "DX", cfg.JiraDefaultProject)
+}

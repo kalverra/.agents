@@ -41,33 +41,18 @@ Programming red-green TDD:
 3 Write the minimal implementation to pass the test.
 4 Refactor if needed.
 Never skip test. Never implement before test. Always include test and implementation.
-
-<language name="go">
-- Use table-driven tests where possible
-</language>
 </style>
 
 <tools>
+<rule name="rtk">
+Prepend all commands with `rtk`. This reduces token output. Omit `rtk` prepend ONLY if you need full output.
+</rule>
 <rule name="codebase-memory-mcp">
-# Codebase Exploration Rules
-
-[codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — local MCP server that indexes repos into a persistent knowledge graph (functions, classes, call chains, routes, cross-service links). 14 tools, sub-ms queries, ~99% fewer tokens than file-by-file grep/read. Server identifier: `user-codebase-memory-mcp`.
-
-## Project parameter (required)
+[codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) MCP server that indexes repos into a persistent knowledge graph (functions, classes, call chains, routes, cross-service links). Server identifier: `user-codebase-memory-mcp`. Prefer using this over simple search.
 
 Every tool call **except** `list_projects` must include `project`. Derive it from the repo's absolute path: strip the leading `/`, replace `/` with `-`.
 
 Example: `/Users/adamhamrick/Projects/chainlink` → `Users-adamhamrick-Projects-chainlink`
-
-Unsure? Call `list_projects` first to see indexed names and node counts.
-
-## Bootstrap
-
-If the project is not indexed, call `index_repository` with `repo_path` set to the absolute repo path. Auto-sync keeps the graph fresh after the first index.
-
-## Workflow
-
-Prefer graph tools over grep/glob/read for structural discovery. Fall back to `rg` only when the graph lacks coverage (unindexed files, comments, string literals).
 
 1. **Architecture first** — `get_architecture` for languages, packages, entry points, routes, hotspots, clusters, and boundaries. Skip broad grep/glob passes for high-level discovery.
 2. **Schema when needed** — `get_graph_schema` for node/edge counts, relationship patterns, and property definitions before writing Cypher.
@@ -78,7 +63,22 @@ Prefer graph tools over grep/glob/read for structural discovery. Fall back to `r
 7. **Impact before refactor** — `detect_changes` maps git diff to affected symbols, blast radius, and risk classification.
 8. **Complex audits** — `query_graph` with read-only Cypher (e.g. dead code: `WHERE NOT EXISTS { (f)<-[:CALLS]-() }`). No write/`MERGE`/`CALL` clauses.
 </rule>
+
+<rule name="git-commit">
+Cannot use `git commit` directly. Either:
+1. Ask user to commit for you
+2. If explicitly instructed by the user to commit, do so with `--no-gpg-sign` flag. e.g. `git commit --no-gpg-sign -m "Commit message"`
+</rule>
 <rule name="rg">
 Prefer `rg` over `grep` for search.
 </rule>
+<rule name="work-ticketing">
+1. Check `agents ticket status --ai-output` at session start. Invoking `/ticket` skill starts/re-triggers this flow.
+2. If branch matches a Jira ticket, `agents ticket status` automatically writes `./<KEY>.md` ticket context file. Read `./<KEY>.md` to ground work.
+3. If in a work repo with no ticket matching branch, `agents ticket status` automatically displays assigned active Epics and assigned active tickets.
+4. Ground work in a single, manageable ticket unit. Prompt for user approval before creating a new Epic-linked Jira ticket (`agents ticket create --title "..." --epic EPIC_KEY`).
+5. Default progress comments to personal Todoist (`agents ticket comment [REF] --body "..."`) to keep public Jira clean. Writes to Jira require explicit user approval.
+6. If tangent or scope creep arises, prompt user to create a new Epic-linked ticket instead of stuffing it into current ticket.
+</rule>
 </tools>
+

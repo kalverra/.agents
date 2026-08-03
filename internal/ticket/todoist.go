@@ -264,3 +264,105 @@ func (t *Todoist) Comment(ctx context.Context, id string, body string) error {
 	}
 	return nil
 }
+
+// CreateTaskRequest holds parameters for creating a Todoist task.
+type CreateTaskRequest struct {
+	Title       string `json:"content"`
+	Description string `json:"description"`
+}
+
+// CreateTask creates a task in Todoist.
+func (t *Todoist) CreateTask(ctx context.Context, req CreateTaskRequest) (*Ticket, error) {
+	if strings.TrimSpace(t.cfg.Token) == "" {
+		return nil, fmt.Errorf("TODOIST_API_TOKEN is required")
+	}
+	if strings.TrimSpace(req.Title) == "" {
+		return nil, fmt.Errorf("task title is required")
+	}
+
+	payload := map[string]string{
+		"content": req.Title,
+	}
+	if strings.TrimSpace(req.Description) != "" {
+		payload["description"] = req.Description
+	}
+
+	resp, err := t.client.R().
+		SetContext(ctx).
+		SetHeader("Content-Type", "application/json").
+		SetBody(payload).
+		Post("/tasks")
+	if err != nil {
+		return nil, err
+	}
+	if resp.IsStatusFailure() {
+		return nil, fmt.Errorf("todoist POST tasks: %s: %s", resp.Status(), strings.TrimSpace(resp.String()))
+	}
+
+	var tr todoistTaskV1
+	if err := json.Unmarshal(resp.Bytes(), &tr); err != nil {
+		return nil, fmt.Errorf("decoding created task: %w", err)
+	}
+
+	taskURL := strings.TrimSpace(tr.URL)
+	if taskURL == "" {
+		taskURL = "https://app.todoist.com/app/task/" + tr.ID
+	}
+
+	return &Ticket{
+		ID:          tr.ID,
+		Title:       tr.Content,
+		Description: tr.Description,
+		Status:      tr.status(),
+		URL:         taskURL,
+	}, nil
+}
+
+// SearchTasksByJiraKey searches Todoist tasks for one whose content or description contains the Jira key.
+func (t *Todoist) SearchTasksByJiraKey(ctx context.Context, jiraKey string) (*Ticket, error) {
+	if strings.TrimSpace(t.cfg.Token) == "" {
+		return nil, fmt.Errorf("TODOIST_API_TOKEN is required")
+	}
+	jiraKey = strings.TrimSpace(jiraKey)
+	if jiraKey == "" {
+		return nil, fmt.Errorf("jiraKey is required")
+	}
+
+	resp, err := t.client.R().
+		SetContext(ctx).
+		Get("/tasks")
+	if err != nil {
+		return nil, err
+	}
+	if resp.IsStatusFailure() {
+		return nil, fmt.Errorf("todoist GET tasks: %s: %s", resp.Status(), strings.TrimSpace(resp.String()))
+	}
+
+	var tasksList struct {
+		Results []todoistTaskV1 `json:"results"`
+	}
+	if err := json.Unmarshal(resp.Bytes(), &tasksList); err != nil || len(tasksList.Results) == 0 {
+		var rawList []todoistTaskV1
+		if err := json.Unmarshal(resp.Bytes(), &rawList); err == nil {
+			tasksList.Results = rawList
+		}
+	}
+
+	for _, task := range tasksList.Results {
+		if strings.Contains(task.Content, jiraKey) || strings.Contains(task.Description, jiraKey) {
+			taskURL := strings.TrimSpace(task.URL)
+			if taskURL == "" {
+				taskURL = "https://app.todoist.com/app/task/" + task.ID
+			}
+			return &Ticket{
+				ID:          task.ID,
+				Title:       task.Content,
+				Description: task.Description,
+				Status:      task.status(),
+				URL:         taskURL,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no todoist task found matching jira key %s", jiraKey)
+}

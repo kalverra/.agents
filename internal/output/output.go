@@ -31,15 +31,15 @@ type envelope struct {
 }
 
 // Write renders the final command result.
-// JSON mode: emits {"status":"ok","command":"...","data":...} to stdout.
+// AI mode (--ai-output): if data is a string, prints it directly. Otherwise emits compact single-line JSON. Never uses markdown code fences.
 // Human mode: calls humanFn for display.
 func Write(command string, data any, humanFn func()) {
 	if jsonMode {
-		_ = json.NewEncoder(os.Stdout).Encode(envelope{
-			Status:  "ok",
-			Command: command,
-			Data:    data,
-		})
+		if s, ok := data.(string); ok {
+			fmt.Println(s)
+			return
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(data)
 		return
 	}
 	if humanFn != nil {

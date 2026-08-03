@@ -34,6 +34,10 @@ Drop caveman when:
 - Writing or formatting code
 </personality>
 
+<session-start>
+At the start of every session, run `~/.agents/agents ticket status --ai-output` to see current ticket context. Run `/ticket` skill for more detail.
+</session-start>
+
 <style>
 Programming red-green TDD:
 1 Write a failing test
@@ -77,8 +81,7 @@ Prefer `rg` over `grep` for search.
 2. If branch matches a Jira ticket, `agents ticket status` automatically writes `./<KEY>.md` ticket context file. Read `./<KEY>.md` to ground work.
 3. If in a work repo with no ticket matching branch, `agents ticket status` automatically displays assigned active Epics and assigned active tickets.
 4. Ground work in a single, manageable ticket unit. Prompt for user approval before creating a new Epic-linked Jira ticket (`agents ticket create --title "..." --epic EPIC_KEY`).
-5. Default progress comments to personal Todoist (`agents ticket comment [REF] --body "..."`) to keep public Jira clean. Writes to Jira require explicit user approval.
+5. Default progress comments to personal Todoist (`agents ticket comment [REF] --body "..."`) to keep public Jira clean. When prompted by user to update Jira, synthesize Todoist notes & session work into a colleague/manager-facing summary and get explicit user approval before posting (`agents ticket comment <KEY> --jira --body "..."`).
 6. If tangent or scope creep arises, prompt user to create a new Epic-linked ticket instead of stuffing it into current ticket.
 </rule>
 </tools>
-

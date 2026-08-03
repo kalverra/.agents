@@ -1,5 +1,5 @@
 <goals>
-* Portable skills and rules for all agents.
+* Portable skills and rules for ALL agents + harnesses.
 * Auto-discover and install skills across agents installed on machine
 * Use agent for reasoning, code for everything else. Agent shouldn't waste time fumbling with MCP servers or API calls to get info. Anything deterministic should be a flow in code to gather info for the AI to do what it's best at.
 </goals>
@@ -31,8 +31,16 @@ DO NOT run `go fmt`, `goimports`, or any other base go commands outside of the a
 </style>
 
 <docs>
+<api>
 When making API calls, look for up-to-date, officially supported Go clients. If none exist, build a basic client using resty.
 - [Resty Docs](https://resty.dev/)
 - [Todoist API](https://developer.todoist.com/api/v1/)
 - [Jira API](https://developer.atlassian.com/cloud/jira/platform/rest/v3)
+</api>
+<agents>
+Frequently used agent harnesses. Docs updated frequently, double-check assumptions on settings.
+- [Antigravity CLI](https://antigravity.google/docs/cli/overview)
+- [Opencode](https://opencode.ai/docs)
+- [Claude Code](https://code.claude.com/docs/en/overview)
+</agents>
 </docs>
